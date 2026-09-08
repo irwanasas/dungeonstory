@@ -1,0 +1,60 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --void: #05070b;
+  --ink: #0a0d13;
+  --stone: #3a525a;
+  --stone-lit: #6c8a92;
+  --bone: #ded6be;
+  --muted: #8a9aa4;
+  --gold: #e8bc4a;
+  --gold-lit: #f6d67a;
+  --ember: #e2603a;
+  --ember-lit: #fca654;
+  --moss: #56a876;
+  --moss-lit: #8cd69e;
+  --frost: #80c8e2;
+  --violet: #926abe;
+  --blood: #9a3434;
+  --cell-w: 256px;
+  --art-h: 464px;
+  --floor: 100px;
+  --pad: 0px;
+  --pixel: var(--font-pixel), 'Courier New', monospace;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--void);
+  color: var(--bone);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+img {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.pix {
+  font-family: var(--pixel);
+  letter-spacing: 0.02em;
+}

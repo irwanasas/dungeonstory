@@ -1,0 +1,135 @@
+.frame,
+.inset,
+.btn,
+.plate,
+.danger {
+  border-style: solid;
+  border-width: 12px;
+  image-rendering: pixelated;
+}
+.frame {
+  border-image: var(--f-panel) 6 fill stretch;
+}
+.inset {
+  border-image: var(--f-inset) 6 fill stretch;
+}
+.btn {
+  border-image: var(--f-button) 6 fill stretch;
+}
+.btn:active:not(:disabled),
+.btn.on {
+  border-image: var(--f-button-down) 6 fill stretch;
+}
+.btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.plate {
+  border-image: var(--f-plate) 6 fill stretch;
+}
+.danger {
+  border-image: var(--f-danger) 6 fill stretch;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, #10151d 0%, var(--void) 70%);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.hud {
+  flex: 0 0 auto;
+  margin: 6px 8px 0;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hud-left {
+  min-width: 0;
+}
+.hud-title {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--gold-lit);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.hud-sub {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
+}
+.hud-right {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.coin {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold-lit);
+}
+.coin.souls {
+  color: var(--frost);
+}
+.coin img {
+  width: 16px;
+  height: 16px;
+}
+
+.tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 4px;
+}
+.tab {
+  flex: 1;
+  padding: 4px 2px;
+  font-family: var(--pixel);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab.on {
+  color: var(--gold-lit);
+}
+.tab-icon {
+  flex: 0 0 44px;
+  position: relative;
+}
+.tab-icon img {
+  width: 18px;
+  height: 18px;
+}
+
+.tab-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--ember-lit);
+  box-shadow: 0 0 8px rgba(252, 166, 84, 0.9);
+}
+.tab-dot.live {
+  background: var(--gold-lit);
+  box-shadow: 0 0 8px rgba(246, 214, 122, 0.9);
+}
