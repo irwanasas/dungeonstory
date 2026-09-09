@@ -5,7 +5,7 @@ import type { RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
 import { LORD } from '../../game/content/monsters';
-import { dungeonPower, unlockSoulCost } from '../../game/state/economy';
+import { unlockSoulCost } from '../../game/state/economy';
 import { effectCount } from '../../game/state/world';
 import { canPlace, unlockedFor } from '../../game/state/save';
 import { returningNote } from '../../game/state/roster';
@@ -27,13 +27,14 @@ import { BuildSheet } from './panels/BuildSheet';
 import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
 import { ExpeditionSheet } from './panels/ExpeditionSheet';
+import { RoomPlacementView } from './panels/RoomPlacementView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradeSheet } from './panels/UpgradeSheet';
 import { WorldSheet } from './panels/WorldSheet';
 import { Coach, HeroTeaser, OfflinePanel, TUTORIAL } from './overlays';
-import { ICON, artVars, contentArt, heroArt } from './art';
-import { CELL, useRaidDirector } from './useRaidDirector';
+import { ICON, artVars } from './art';
+import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
@@ -48,6 +49,7 @@ export default function GameShell() {
   const [report, setReport] = useState<ExpeditionState | null>(null);
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [guardian, setGuardian] = useState(MONSTERS[0].id);
   const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
@@ -60,6 +62,7 @@ export default function GameShell() {
   // Three layouts: building the dungeon, reading the road, watching a fight.
   const battleMode = view.raiding || battleStep;
   const storyMode = exp !== null && !battleMode;
+  const placeMode = placing && !storyMode && !battleMode;
 
 
   const advanceTutorial = useCallback(
@@ -68,12 +71,6 @@ export default function GameShell() {
     },
     [update]
   );
-
-  const scrollToRoom = useCallback((room: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTo({ left: (room + 1) * CELL, behavior: 'smooth' });
-  }, []);
 
   if (!state || !raider) {
     return (
@@ -245,7 +242,6 @@ export default function GameShell() {
           <div className="hud-title">OWN A DUNGEON</div>
           <div className="hud-sub">
             {`Stage ${state.stage}/${STAGE_MAX} · ${stage.title}`}
-            {` · Power ${dungeonPower(state)}`}
           </div>
         </div>
         <div className="hud-right">
@@ -275,7 +271,7 @@ export default function GameShell() {
         </button>
       </nav>
 
-      {!storyMode && (
+      {!storyMode && !placeMode && (
         <DungeonView
         rooms={state.rooms}
         levels={state.levels}
@@ -294,41 +290,23 @@ export default function GameShell() {
         />
       )}
 
-      {!storyMode && !battleMode && (
-      <div className="strip">
-        {state.rooms.map((slot, i) => (
-          <button
-            key={i}
-            className={'pip' + (slot.kind !== 'empty' ? ' on' : '') + (selected === i ? ' here' : '')}
-            onClick={() => {
-              if (busy) return;
-              setSelected(i);
-              scrollToRoom(i);
-              sfx('tap');
-            }}
-            aria-label={`Room ${i + 1}`}
-          >
-            {slot.kind === 'empty' ? <span className="pip-n">{i + 1}</span> : <img src={contentArt(slot.kind, slot.id)} alt="" />}
-          </button>
-        ))}
-        <button
-          className={'pip throne' + (selected === EDITABLE_ROOMS ? ' here' : '')}
-          onClick={() => {
-            if (busy) return;
-            setSelected(EDITABLE_ROOMS);
-            scrollToRoom(EDITABLE_ROOMS);
+      {placeMode && (
+        <RoomPlacementView
+          state={state}
+          onPickRoom={(i) => {
+            setSelected(i);
+            openSheet(i >= EDITABLE_ROOMS ? 'upgrade' : 'build');
+          }}
+          onClose={() => {
+            setPlacing(false);
             sfx('tap');
           }}
-          aria-label="Throne Room"
-        >
-          <img src={ICON.lord} alt="" />
-        </button>
-      </div>
+        />
       )}
 
       {storyMode && exp ? (
         <DayPanel exp={exp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishExpedition} />
-      ) : battleMode ? null : (
+      ) : battleMode || placeMode ? null : (
         <HeroTeaser
           defId={raider.defId}
           name={raider.name}
@@ -352,11 +330,8 @@ export default function GameShell() {
               <button
                 className="side btn"
                 onClick={() => {
-                  if (selected < 0 || selected >= EDITABLE_ROOMS) {
-                    setSelected(0);
-                    scrollToRoom(0);
-                  }
-                  openSheet('build');
+                  setPlacing(true);
+                  sfx('tap');
                 }}
                 disabled={locked}
                 aria-label="Build"
