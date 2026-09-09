@@ -108,6 +108,7 @@ export interface ExpeditionState {
   pending: PendingChoice | null;
   dayTitle: string;
   dayBody: string;
+  dayTone?: DayTone;
   party: PartyMember[];
   waveIndex: number;
   backupPending: boolean;
@@ -121,6 +122,8 @@ export interface ExpeditionState {
   totals: { gold: number; souls: number; goldStolen: number; checkpointsCleared: number; wavesLost: number };
   outcome: Outcome | null;
 }
+
+export type DayTone = 'blessed' | 'cursed' | 'neutral' | 'omen' | 'battle';
 
 export interface DayOutcome {
   exp: ExpeditionState;
@@ -273,6 +276,7 @@ export function beginExpedition(
     status: 'active',
     pending: null,
     dayTitle: 'The Road Begins',
+    dayTone: 'neutral',
     dayBody: `A party of ${WAVE_SIZE} sets out for your gate, ${record.name} at the front. ${totalDays} days of road lie between.`,
     party: rollWave(stage.heroPool, level, seedBase, 1, world, rng, record),
     waveIndex: 1,
@@ -706,6 +710,7 @@ function resolveDayEvent(exp: ExpeditionState, out: RaidEvent[]): void {
     exp.backupPending = false;
     const wave = activeParty(exp);
     const names = wave.map((m) => m.hero.name).join(', ');
+    exp.dayTone = 'omen';
     exp.dayTitle = 'Calling Backup';
     exp.dayBody = `Word of the last wave reaches the muster. A fresh party forms up: ${names}.`;
     exp.log.push({ day: exp.day, kind: 'backup', text: `Wave ${exp.waveIndex} sets out.` });
@@ -715,12 +720,14 @@ function resolveDayEvent(exp: ExpeditionState, out: RaidEvent[]): void {
   const rng = dayRng(exp, 1);
   const e = pickEvent(exp, rng);
   if (!e) {
+    exp.dayTone = 'neutral';
     exp.dayTitle = 'The Road Goes On';
     exp.dayBody = 'Nothing worth telling happens today.';
     exp.log.push({ day: exp.day, kind: 'quiet', text: 'A quiet day.' });
     return;
   }
 
+  exp.dayTone = e.category;
   exp.dayTitle = e.title;
   exp.dayBody = e.body;
   if (e.category === 'cursed') exp.decay['cursed'] = (exp.decay['cursed'] || 0) + 1;
@@ -790,6 +797,7 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
   const isThrone = exp.day >= exp.setup.totalDays || exp.checkpoint >= EDITABLE_ROOMS;
   const index = isThrone ? EDITABLE_ROOMS : exp.checkpoint;
   const label = isThrone ? 'the Throne Room' : `Room ${index + 1}`;
+  exp.dayTone = 'battle';
   let wave = activeParty(exp);
 
   if (isThrone && !exp.party.some((m) => m.king)) {

@@ -62,7 +62,6 @@
   background-repeat: no-repeat;
   background-position: center bottom;
   background-size: var(--cell-w) var(--art-h);
-  background-color: #090d13;
   image-rendering: pixelated;
 }
 .cell.entrance {
@@ -643,69 +642,6 @@
   animation: none;
 }
 
-.day {
-  flex: 0 0 auto;
-  padding: 8px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.day-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-family: var(--pixel);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-}
-
-.day-count {
-  color: var(--gold-lit);
-}
-
-.day-meta {
-  color: var(--muted);
-}
-
-.day-title {
-  font-family: var(--pixel);
-  font-size: 12px;
-  color: var(--bone);
-  letter-spacing: 0.04em;
-}
-
-.day-body {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-  white-space: pre-line;
-  max-height: 84px;
-  overflow-y: auto;
-}
-
-.day-aura {
-  font-family: var(--pixel);
-  font-size: 9px;
-  color: var(--moss-lit);
-  letter-spacing: 0.04em;
-}
-
-.day-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.day-btn {
-  font-family: var(--pixel);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--bone);
-  padding: 11px 10px;
-  min-height: 44px;
-}
-
 .bar-group {
   display: flex;
   flex-direction: column;
@@ -728,34 +664,214 @@
   white-space: nowrap;
 }
 
-.day-party {
+
+
+.story {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  font-size: 10px;
+  flex-direction: column;
+  padding: 10px 12px 6px;
+  gap: 10px;
+  --tone: var(--muted);
+}
+
+.story.tone-blessed { --tone: var(--moss-lit); }
+.story.tone-cursed { --tone: var(--ember-lit); }
+.story.tone-omen { --tone: var(--violet); }
+.story.tone-battle { --tone: var(--gold-lit); }
+
+.story-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--stone);
+  font-family: var(--pixel);
+  letter-spacing: 0.06em;
+}
+
+.story-day {
+  font-size: 13px;
+  color: var(--bone);
+}
+
+.story-of {
+  font-size: 9px;
   color: var(--muted);
 }
 
-.day-hero {
-  display: inline-flex;
-  align-items: center;
+.story-track {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.story-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* auto margins centre a short passage and collapse when a long one overflows,
+   which justify-content: center cannot do without clipping the top */
+.story-inner {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.story-tag {
+  align-self: flex-start;
+  font-family: var(--pixel);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--void);
+  background: var(--tone);
+  padding: 3px 6px;
+}
+
+.story-title {
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: 0.03em;
+  color: var(--tone);
+}
+
+.story-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--bone);
+  white-space: pre-line;
+}
+
+.story-aura {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--moss-lit);
+  border-left: 2px solid var(--moss);
+  padding-left: 6px;
+}
+
+.story-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 9px;
+}
+
+.story-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 11px 12px;
+  min-height: 52px;
+  background: var(--ink);
+  border: 1px solid var(--stone-lit);
+}
+
+.story-option:active {
+  background: var(--stone);
+}
+
+.story-option-label {
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.story-option-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.story-party {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--stone);
+}
+
+.story-hero {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.story-hero-top {
+  display: flex;
+  justify-content: space-between;
   gap: 4px;
   font-family: var(--pixel);
-  font-size: 9px;
+  font-size: 8px;
+  letter-spacing: 0.02em;
+}
+
+.story-hero-name {
   color: var(--bone);
-  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.day-hero.hurt {
-  color: var(--ember-lit);
+.story-hero.king .story-hero-name {
+  color: var(--gold-lit);
 }
 
-.day-hero-hp {
+.story-hero-hp {
   color: var(--muted);
+  flex: 0 0 auto;
 }
 
-.day-party-none {
+.story-hero-bar {
+  display: block;
+  height: 4px;
+  background: var(--ink);
+  border: 1px solid var(--stone);
+}
+
+.story-hero-fill {
+  display: block;
+  height: 100%;
+  background: var(--moss-lit);
+}
+
+.story-hero-fill.low {
+  background: var(--ember-lit);
+}
+
+.story-hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.story-none {
   font-family: var(--pixel);
   font-size: 9px;
   color: var(--muted);
+}
+
+.story-actions .next {
+  font-family: var(--pixel);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--bone);
+  min-height: 54px;
 }

@@ -47,6 +47,7 @@ export default function GameShell() {
   const [news, setNews] = useState<WorldEvent | null>(null);
   const [report, setReport] = useState<ExpeditionState | null>(null);
   const [stepping, setStepping] = useState(false);
+  const [battleStep, setBattleStep] = useState(false);
   const [guardian, setGuardian] = useState(MONSTERS[0].id);
   const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
@@ -56,6 +57,9 @@ export default function GameShell() {
   const onExpedition = exp !== null && exp.status === 'active';
   const busy = view.raiding || stepping;
   const locked = busy || onExpedition;
+  // Three layouts: building the dungeon, reading the road, watching a fight.
+  const battleMode = view.raiding || battleStep;
+  const storyMode = exp !== null && !battleMode;
 
 
   const advanceTutorial = useCallback(
@@ -175,6 +179,12 @@ export default function GameShell() {
     const wave = activeParty(exp);
     const fromRoom = Math.max(-1, exp.checkpoint - 1);
     setStepping(true);
+    if (battle) {
+      // Mount the dungeon before playback: the director captures scrollRef
+      // synchronously, so it has to exist before play() is called.
+      setBattleStep(true);
+      await new Promise((r) => setTimeout(r, 0));
+    }
     const outcome = advanceDay(exp, state.world);
     update((s) => ({ ...s, expedition: outcome.exp }));
     sfx(battle ? 'door' : 'tap');
@@ -188,6 +198,7 @@ export default function GameShell() {
       }));
       await play(outcome.events, seeds, fromRoom);
     }
+    setBattleStep(false);
     setStepping(false);
   }
 
@@ -225,7 +236,7 @@ export default function GameShell() {
   }
 
   const veteranNote = returningNote(raider);
-  const coachHidden = busy || sheet !== null || offline !== null;
+  const coachHidden = busy || sheet !== null || offline !== null || exp !== null;
 
   return (
     <div className="app" style={artVars}>
@@ -264,7 +275,8 @@ export default function GameShell() {
         </button>
       </nav>
 
-      <DungeonView
+      {!storyMode && (
+        <DungeonView
         rooms={state.rooms}
         levels={state.levels}
         selected={selected}
@@ -278,9 +290,11 @@ export default function GameShell() {
         onScrollRoom={setSelected}
         speed={speed}
         onSpeed={() => setSpeed(speed >= 8 ? 1 : speed * 2)}
-        quiet={onExpedition && !view.raiding}
-      />
+        quiet={false}
+        />
+      )}
 
+      {!storyMode && !battleMode && (
       <div className="strip">
         {state.rooms.map((slot, i) => (
           <button
@@ -310,10 +324,11 @@ export default function GameShell() {
           <img src={ICON.lord} alt="" />
         </button>
       </div>
+      )}
 
-      {exp ? (
-        <DayPanel exp={exp} busy={busy} onNextDay={nextDay} onChoose={choose} onFinish={finishExpedition} />
-      ) : (
+      {storyMode && exp ? (
+        <DayPanel exp={exp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishExpedition} />
+      ) : battleMode ? null : (
         <HeroTeaser
           defId={raider.defId}
           name={raider.name}
@@ -330,29 +345,35 @@ export default function GameShell() {
         />
       )}
 
-      <div className="bottom">
-        <button
-          className="side btn"
-          onClick={() => {
-            if (selected < 0 || selected >= EDITABLE_ROOMS) {
-              setSelected(0);
-              scrollToRoom(0);
-            }
-            openSheet('build');
-          }}
-          disabled={locked}
-          aria-label="Build"
-        >
-          <img src={ICON.build} alt="" />
-        </button>
-        <button className="raid btn" onClick={openIntel} disabled={locked}>
-          <img src={ICON.raid} alt="" />
-          {onExpedition ? 'ON THE ROAD' : 'EXPEDITION'}
-        </button>
-        <button className="side btn" onClick={() => openSheet('upgrade')} disabled={locked} aria-label="Upgrade">
-          <img src={ICON.upgrade} alt="" />
-        </button>
-      </div>
+      {!battleMode && !storyMode && (
+        <div className="bottom">
+          {
+            <>
+              <button
+                className="side btn"
+                onClick={() => {
+                  if (selected < 0 || selected >= EDITABLE_ROOMS) {
+                    setSelected(0);
+                    scrollToRoom(0);
+                  }
+                  openSheet('build');
+                }}
+                disabled={locked}
+                aria-label="Build"
+              >
+                <img src={ICON.build} alt="" />
+              </button>
+              <button className="raid btn" onClick={openIntel} disabled={locked}>
+                <img src={ICON.raid} alt="" />
+                EXPEDITION
+              </button>
+              <button className="side btn" onClick={() => openSheet('upgrade')} disabled={locked} aria-label="Upgrade">
+                <img src={ICON.upgrade} alt="" />
+              </button>
+            </>
+          }
+        </div>
+      )}
 
       <BuildSheet
         open={sheet === 'build'}
