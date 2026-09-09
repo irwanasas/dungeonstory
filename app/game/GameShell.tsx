@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import type { RoomSlot, WorldEvent } from '../../game/types';
+import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
 import { LORD } from '../../game/content/monsters';
-import { unlockSoulCost } from '../../game/state/economy';
-import { effectCount } from '../../game/state/world';
-import { canPlace, unlockedFor } from '../../game/state/save';
-import { returningNote } from '../../game/state/roster';
+import { legacyFrom, trophiesFrom } from '../../game/content/milestones';
+import { challengeSouls, challengesFrom } from '../../game/content/challenges';
+import { toDungeon, unlockSoulCost } from '../../game/state/economy';
+import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
+import { FAME_MAX, canPlace, unlockedFor, type GameState } from '../../game/state/save';
+import { absorbResult, returningNote } from '../../game/state/roster';
 import {
   activeParty,
   advanceDay,
@@ -21,6 +23,7 @@ import {
 } from '../../game/state/campaign';
 import { HEROES } from '../../game/content/heroes';
 import { MONSTERS } from '../../game/content/monsters';
+import { simulateRaid } from '../../game/sim/raid';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
 import { BuildSheet } from './panels/BuildSheet';
@@ -33,7 +36,7 @@ import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradePanel } from './panels/UpgradePanel';
 import { WorldSheet } from './panels/WorldSheet';
-import { Coach, HeroTeaser, OfflinePanel, TUTORIAL } from './overlays';
+import { Coach, HeroTeaser, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
 import { ICON, artVars } from './art';
 import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
@@ -42,6 +45,8 @@ import { play as sfx, startAmbient } from './audio';
 type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
+
+const MIN_WORLD_STAGE = 3;
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'shop', label: 'Shop', icon: ICON.gold },
@@ -58,6 +63,9 @@ export default function GameShell() {
   const [justPlaced, setJustPlaced] = useState(-1);
   const [news, setNews] = useState<WorldEvent | null>(null);
   const [report, setReport] = useState<CampaignState | null>(null);
+  const [result, setResult] = useState<RaidResult | null>(null);
+  const [resultOpen, setResultOpen] = useState(false);
+  const [stageCleared, setStageCleared] = useState(false);
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
@@ -92,6 +100,7 @@ export default function GameShell() {
   }
 
   const stage = stageDef(state.stage);
+  const tier = state.mode === 'arcade' ? state.wave : state.stage;
   const filled = state.rooms.filter((r) => r.kind !== 'empty').length;
 
   function place(slot: RoomSlot) {
@@ -156,6 +165,93 @@ export default function GameShell() {
     setSheet(kind);
     sfx('tap');
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
+  }
+
+  async function startRaid() {
+    if (busy || !state || !raider) return;
+    startAmbient();
+    sfx('door');
+
+    const heroLevel = state.mode === 'arcade' ? 1 + Math.floor((state.wave - 1) / 2) : stage.heroLevel;
+    const record: HeroRecord = { ...raider, level: Math.max(raider.level, heroLevel) };
+    const lordLevel =
+      state.mode === 'arcade' ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
+    const dungeon = { ...toDungeon(state), lordLevel };
+    const raidResult = simulateRaid(dungeon, record, tier, { world: worldModifiers(state.world) });
+
+    setStepping(true);
+    setBattleStep(true);
+    await new Promise((r) => setTimeout(r, 0));
+    await play(raidResult.events, [
+      { name: record.name, defId: record.defId, hp: raidResult.hero.maxHp, maxHp: raidResult.hero.maxHp }
+    ]);
+    setBattleStep(false);
+    setStepping(false);
+
+    const turned = tickWorld(state.world, state.mode === 'arcade' ? MIN_WORLD_STAGE : state.stage, systemRng);
+    const cleared = state.mode === 'rush' && raidResult.outcome === 'dungeonWin' && state.stage > state.maxStageCleared;
+
+    update((s) => {
+      const roster = absorbResult(s.roster, record, raidResult);
+      const hero = roster[0];
+      const earned = [
+        ...trophiesFrom(raidResult.events),
+        ...(s.mode === 'rush' ? challengesFrom(dungeon, s.stage, raidResult) : [])
+      ].filter((id) => !s.unlockedMilestones.includes(id));
+      const fame = legacyFrom(hero, raidResult)
+        .filter((id) => !s.hallOfFame.some((e) => e.uid === hero.uid && e.milestoneId === id))
+        .map((id) => ({
+          uid: hero.uid,
+          heroName: hero.name,
+          title: hero.title,
+          milestoneId: id,
+          achievedAt: Date.now()
+        }));
+
+      const next: GameState = {
+        ...s,
+        world: turned.world,
+        gold: s.gold + raidResult.gold,
+        souls: s.souls + raidResult.souls + challengeSouls(earned),
+        roster,
+        unlockedMilestones: [...s.unlockedMilestones, ...earned],
+        hallOfFame: [...fame, ...s.hallOfFame].slice(0, FAME_MAX),
+        stats: {
+          ...s.stats,
+          raids: s.stats.raids + 1,
+          defeated: s.stats.defeated + (raidResult.outcome === 'dungeonWin' ? 1 : 0),
+          escaped: s.stats.escaped + (raidResult.outcome === 'heroEscape' ? 1 : 0),
+          lost: s.stats.lost + (raidResult.outcome === 'heroVictory' ? 1 : 0),
+          goldEarned: s.stats.goldEarned + raidResult.gold,
+          goldStolen: s.stats.goldStolen + raidResult.goldStolen
+        }
+      };
+      if (s.mode === 'rush') {
+        if (raidResult.outcome === 'dungeonWin') {
+          next.maxStageCleared = Math.max(s.maxStageCleared, s.stage);
+          if (s.stage < STAGE_MAX) next.stage = s.stage + 1;
+          next.unlocked = [...new Set([...unlockedFor(next.stage), ...next.bought])];
+        }
+      } else if (raidResult.outcome === 'dungeonWin') {
+        next.bestWave = Math.max(s.bestWave, s.wave);
+        next.wave = s.wave + 1;
+      } else {
+        next.wave = 1;
+      }
+      return next;
+    });
+
+    setResult(raidResult);
+    setStageCleared(cleared);
+    setNews(turned.fired);
+    setResultOpen(true);
+  }
+
+  function closeResult() {
+    if (!state) return;
+    setResultOpen(false);
+    sfx('tap');
+    rollRaider(state);
   }
 
   function openUpgrades() {
@@ -239,6 +335,8 @@ export default function GameShell() {
     setSelected(0);
     setSheet(null);
     setReport(null);
+    setResult(null);
+    setResultOpen(false);
     sfx('lose');
   }
 
@@ -353,7 +451,15 @@ export default function GameShell() {
       {!takeover && tab === 'talent' && (
         <StubView title="Talent Tree" note="Nekrokos has learned nothing new. Yet." />
       )}
-      {!takeover && tab === 'explore' && <StubView title="Explore" note="No roads open from here yet." />}
+      {!takeover && tab === 'explore' && (
+        <div className="stub">
+          <span className="stub-title">Explore</span>
+          <p className="stub-note">One hero, five rooms, settled in a single pass.</p>
+          <button className="modal-btn btn" onClick={startRaid} disabled={locked}>
+            Rush
+          </button>
+        </div>
+      )}
 
       {campaignMode && camp ? (
         <DayPanel camp={camp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishCampaign} />
@@ -426,6 +532,14 @@ export default function GameShell() {
         onClose={closeSheet}
       />
       <CampaignSheet open={sheet === 'report'} camp={report} onClose={closeSheet} />
+      <ResultPanel
+        open={resultOpen}
+        result={result}
+        stageCleared={stageCleared}
+        nextBrief={stage.teaches}
+        news={news}
+        onClose={closeResult}
+      />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />
     </div>

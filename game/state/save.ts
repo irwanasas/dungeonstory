@@ -29,7 +29,7 @@ export interface GameState {
   version: number;
   gold: number;
   souls: number;
-  mode: 'stage' | 'arcade';
+  mode: 'rush' | 'arcade';
   stage: number;
   maxStageCleared: number;
   wave: number;
@@ -112,7 +112,7 @@ export function defaultState(): GameState {
     version: SAVE_VERSION,
     gold: 30,
     souls: 0,
-    mode: 'stage',
+    mode: 'rush',
     stage: 1,
     maxStageCleared: 0,
     wave: 1,
@@ -159,7 +159,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   );
   while (rooms.length < EDITABLE_ROOMS) rooms.push({ kind: 'empty' });
   merged.version = SAVE_VERSION;
-  merged.mode = 'stage';
+  merged.mode = 'rush';
   merged.campaign = normalizeCampaign(saved.campaign);
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));

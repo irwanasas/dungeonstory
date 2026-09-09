@@ -36,7 +36,7 @@ export function offlineReport(state: GameState, now: number): OfflineReport | nu
 
   const rng = seeded(Math.floor(state.lastSeenAt / 1000) ^ 0x9e3779b9);
   const dungeon = toDungeon(state);
-  const stage = stageDef(state.mode === 'stage' ? state.stage : STAGES.length);
+  const stage = stageDef(state.mode === 'rush' ? state.stage : STAGES.length);
   const pool = state.mode === 'arcade' ? HEROES.map((h) => h.id) : stage.heroPool;
   const tier = state.mode === 'arcade' ? state.wave : state.stage;
 

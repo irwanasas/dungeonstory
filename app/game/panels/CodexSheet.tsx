@@ -35,7 +35,7 @@ export function CodexSheet({ open, state, onClose }: { open: boolean; state: Gam
 
       {tab === 'dungeon' && (
         <>
-          {state.mode === 'stage' && (
+          {state.mode === 'rush' && (
             <>
               <div className="sheet-group">This Stage</div>
               <div className="row plate">
