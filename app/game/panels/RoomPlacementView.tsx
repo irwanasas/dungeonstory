@@ -38,10 +38,6 @@ export function RoomPlacementView({ state, onPickRoom }: RoomPlacementProps) {
 
   return (
     <div className="place">
-      <div className="place-head">
-        <span className="place-title">Room Placement</span>
-      </div>
-
       <div className="place-grid">
         {state.rooms.map((slot, i) => {
           const level = state.levels[slot.kind === 'empty' ? '' : slot.id] || 1;

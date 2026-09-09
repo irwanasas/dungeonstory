@@ -31,7 +31,7 @@ import { RoomPlacementView } from './panels/RoomPlacementView';
 import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
-import { UpgradeSheet } from './panels/UpgradeSheet';
+import { UpgradePanel } from './panels/UpgradePanel';
 import { WorldSheet } from './panels/WorldSheet';
 import { Coach, HeroTeaser, OfflinePanel, TUTORIAL } from './overlays';
 import { ICON, artVars } from './art';
@@ -39,7 +39,7 @@ import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
+type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
 
@@ -61,6 +61,7 @@ export default function GameShell() {
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
+  const [equipTab, setEquipTab] = useState<'rooms' | 'upgrades'>('rooms');
   const [guardian, setGuardian] = useState(MONSTERS[0].id);
   const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
@@ -154,8 +155,13 @@ export default function GameShell() {
     if (busy) return;
     setSheet(kind);
     sfx('tap');
-    if (kind === 'upgrade' && state && state.tutorial === 4) advanceTutorial(4);
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
+  }
+
+  function openUpgrades() {
+    setEquipTab('upgrades');
+    sfx('tap');
+    if (state && state.tutorial === 4) advanceTutorial(4);
   }
 
   function openIntel() {
@@ -301,13 +307,46 @@ export default function GameShell() {
       )}
 
       {!takeover && tab === 'equipment' && (
-        <RoomPlacementView
-          state={state}
-          onPickRoom={(i) => {
-            setSelected(i);
-            openSheet(i >= EDITABLE_ROOMS ? 'upgrade' : 'build');
-          }}
-        />
+        <div className="equip">
+          <div className="subtabs">
+            <button
+              className={'subtab btn' + (equipTab === 'rooms' ? ' on' : '')}
+              onClick={() => {
+                setEquipTab('rooms');
+                sfx('tap');
+              }}
+            >
+              Rooms
+            </button>
+            <button
+              className={'subtab btn' + (equipTab === 'upgrades' ? ' on' : '')}
+              onClick={() => openUpgrades()}
+            >
+              Upgrades
+            </button>
+          </div>
+          {equipTab === 'rooms' ? (
+            <RoomPlacementView
+              state={state}
+              onPickRoom={(i) => {
+                if (i >= EDITABLE_ROOMS) {
+                  openUpgrades();
+                  return;
+                }
+                setSelected(i);
+                openSheet('build');
+              }}
+            />
+          ) : (
+            <UpgradePanel
+              state={state}
+              onUpgrade={upgrade}
+              onLord={upgradeLord}
+              onBuyLordWeapon={buyLordWeapon}
+              onEquipLordWeapon={equipLordWeapon}
+            />
+          )}
+        </div>
       )}
 
       {!takeover && tab === 'shop' && <StubView title="Shop" note="Nothing on the shelves yet." />}
@@ -370,15 +409,6 @@ export default function GameShell() {
         onClose={closeSheet}
         onPlace={place}
         onBuy={buyUnlock}
-      />
-      <UpgradeSheet
-        open={sheet === 'upgrade'}
-        state={state}
-        onClose={closeSheet}
-        onUpgrade={upgrade}
-        onLord={upgradeLord}
-        onBuyLordWeapon={buyLordWeapon}
-        onEquipLordWeapon={equipLordWeapon}
       />
       <CodexSheet open={sheet === 'codex'} state={state} onClose={closeSheet} />
       <WorldSheet open={sheet === 'world'} state={state} onClose={closeSheet} />

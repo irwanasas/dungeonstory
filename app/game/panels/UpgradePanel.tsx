@@ -7,22 +7,17 @@ import { TREASURES } from '../../../game/content/treasure';
 import { lordSoulCost, upgradeCost } from '../../../game/state/economy';
 import type { GameState } from '../../../game/state/save';
 import { ICON, contentArt } from '../art';
-import { Sheet } from './Sheet';
 
 interface UpgradeProps {
-  open: boolean;
   state: GameState;
-  onClose: () => void;
   onUpgrade: (id: string, cost: number) => void;
   onLord: (souls: number) => void;
   onBuyLordWeapon: (id: string, cost: number) => void;
   onEquipLordWeapon: (id: string) => void;
 }
 
-export function UpgradeSheet({
-  open,
+export function UpgradePanel({
   state,
-  onClose,
   onUpgrade,
   onLord,
   onBuyLordWeapon,
@@ -37,7 +32,7 @@ export function UpgradeSheet({
   ].filter((x) => state.unlocked.includes(x.id));
 
   return (
-    <Sheet open={open} title="Upgrade" onClose={onClose}>
+    <div className="upgrades">
       <div className="row plate">
         <img src={ICON.lord} alt="" />
         <span className="row-body">
@@ -118,7 +113,6 @@ export function UpgradeSheet({
           </div>
         );
       })}
-
-    </Sheet>
+    </div>
   );
 }
