@@ -28,6 +28,7 @@ import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
 import { ExpeditionSheet } from './panels/ExpeditionSheet';
 import { RoomPlacementView } from './panels/RoomPlacementView';
+import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradeSheet } from './panels/UpgradeSheet';
@@ -40,6 +41,16 @@ import { play as sfx, startAmbient } from './audio';
 
 type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
 
+type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
+
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'shop', label: 'Shop', icon: ICON.gold },
+  { id: 'equipment', label: 'Rooms', icon: ICON.build },
+  { id: 'campaign', label: 'Campaign', icon: ICON.raid },
+  { id: 'talent', label: 'Talents', icon: ICON.lord },
+  { id: 'explore', label: 'Explore', icon: ICON.world }
+];
+
 export default function GameShell() {
   const { state, raider, offline, setOffline, update, rollRaider, resetState } = useGameState();
   const [selected, setSelected] = useState(0);
@@ -49,7 +60,7 @@ export default function GameShell() {
   const [report, setReport] = useState<ExpeditionState | null>(null);
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
-  const [placing, setPlacing] = useState(false);
+  const [tab, setTab] = useState<Tab>('campaign');
   const [guardian, setGuardian] = useState(MONSTERS[0].id);
   const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
@@ -59,11 +70,10 @@ export default function GameShell() {
   const onExpedition = exp !== null && exp.status === 'active';
   const busy = view.raiding || stepping;
   const locked = busy || onExpedition;
-  // Three layouts: building the dungeon, reading the road, watching a fight.
+  // A fight or an open road takes the whole screen; otherwise a tab owns it.
   const battleMode = view.raiding || battleStep;
   const storyMode = exp !== null && !battleMode;
-  const placeMode = placing && !storyMode && !battleMode;
-
+  const takeover = battleMode || storyMode;
 
   const advanceTutorial = useCallback(
     (from: number) => {
@@ -271,7 +281,7 @@ export default function GameShell() {
         </button>
       </nav>
 
-      {!storyMode && !placeMode && (
+      {!storyMode && (takeover || tab === 'campaign') && (
         <DungeonView
         rooms={state.rooms}
         levels={state.levels}
@@ -290,23 +300,25 @@ export default function GameShell() {
         />
       )}
 
-      {placeMode && (
+      {!takeover && tab === 'equipment' && (
         <RoomPlacementView
           state={state}
           onPickRoom={(i) => {
             setSelected(i);
             openSheet(i >= EDITABLE_ROOMS ? 'upgrade' : 'build');
           }}
-          onClose={() => {
-            setPlacing(false);
-            sfx('tap');
-          }}
         />
       )}
 
+      {!takeover && tab === 'shop' && <StubView title="Shop" note="Nothing on the shelves yet." />}
+      {!takeover && tab === 'talent' && (
+        <StubView title="Talent Tree" note="Nekrokos has learned nothing new. Yet." />
+      )}
+      {!takeover && tab === 'explore' && <StubView title="Explore" note="No roads open from here yet." />}
+
       {storyMode && exp ? (
         <DayPanel exp={exp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishExpedition} />
-      ) : battleMode || placeMode ? null : (
+      ) : battleMode || tab !== 'campaign' ? null : (
         <HeroTeaser
           defId={raider.defId}
           name={raider.name}
@@ -323,31 +335,32 @@ export default function GameShell() {
         />
       )}
 
-      {!battleMode && !storyMode && (
+      {!takeover && tab === 'campaign' && (
         <div className="bottom">
-          {
-            <>
-              <button
-                className="side btn"
-                onClick={() => {
-                  setPlacing(true);
-                  sfx('tap');
-                }}
-                disabled={locked}
-                aria-label="Build"
-              >
-                <img src={ICON.build} alt="" />
-              </button>
-              <button className="raid btn" onClick={openIntel} disabled={locked}>
-                <img src={ICON.raid} alt="" />
-                EXPEDITION
-              </button>
-              <button className="side btn" onClick={() => openSheet('upgrade')} disabled={locked} aria-label="Upgrade">
-                <img src={ICON.upgrade} alt="" />
-              </button>
-            </>
-          }
+          <button className="raid btn" onClick={openIntel} disabled={locked}>
+            <img src={ICON.raid} alt="" />
+            EXPEDITION
+          </button>
         </div>
+      )}
+
+      {!takeover && (
+        <nav className="tabbar">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={'navtab' + (tab === t.id ? ' on' : '')}
+              onClick={() => {
+                setTab(t.id);
+                sfx('tap');
+              }}
+              aria-pressed={tab === t.id}
+            >
+              <img src={t.icon} alt="" />
+              {t.label}
+            </button>
+          ))}
+        </nav>
       )}
 
       <BuildSheet

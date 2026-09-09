@@ -12,7 +12,6 @@ import { ICON, contentArt } from '../art';
 interface RoomPlacementProps {
   state: GameState;
   onPickRoom: (index: number) => void;
-  onClose: () => void;
 }
 
 function slotName(slot: RoomSlot): string {
@@ -29,7 +28,7 @@ function slotCost(slot: RoomSlot): number {
   return 0;
 }
 
-export function RoomPlacementView({ state, onPickRoom, onClose }: RoomPlacementProps) {
+export function RoomPlacementView({ state, onPickRoom }: RoomPlacementProps) {
   const canUpgrade = (slot: RoomSlot) => {
     if (slot.kind === 'empty') return false;
     const level = state.levels[slot.id] || 1;
@@ -41,9 +40,6 @@ export function RoomPlacementView({ state, onPickRoom, onClose }: RoomPlacementP
     <div className="place">
       <div className="place-head">
         <span className="place-title">Room Placement</span>
-        <button className="sheet-close btn" onClick={onClose} aria-label="Back">
-          <img src={ICON.clear} alt="" />
-        </button>
       </div>
 
       <div className="place-grid">
