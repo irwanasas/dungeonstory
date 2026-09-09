@@ -582,3 +582,25 @@ a.row.link {
   color: var(--muted);
   text-align: center;
 }
+
+.explore {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+}
+
+.explore .row {
+  min-height: 88px;
+  align-items: flex-start;
+  padding: 10px 8px;
+}
+
+.explore .row > img {
+  width: 30px;
+  height: 30px;
+  margin-top: 2px;
+}

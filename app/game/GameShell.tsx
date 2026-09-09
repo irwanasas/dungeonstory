@@ -31,6 +31,7 @@ import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
 import { CampaignSheet } from './panels/CampaignSheet';
 import { RoomPlacementView } from './panels/RoomPlacementView';
+import { ExploreView } from './panels/ExploreView';
 import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
@@ -456,16 +457,12 @@ export default function GameShell() {
         <StubView title="Talent Tree" note="Nekrokos has learned nothing new. Yet." />
       )}
       {!takeover && tab === 'explore' && (
-        <div className="stub">
-          <span className="stub-title">Explore</span>
-          <p className="stub-note">One hero, five rooms, settled in a single pass.</p>
-          <button className="modal-btn btn" onClick={() => startRaid('rush')} disabled={locked}>
-            Rush
-          </button>
-          <button className="modal-btn btn" onClick={() => startRaid('arcade')} disabled={locked}>
-            Arcade — wave {state.wave}
-          </button>
-        </div>
+        <ExploreView
+          state={state}
+          locked={locked}
+          onRush={() => startRaid('rush')}
+          onArcade={() => startRaid('arcade')}
+        />
       )}
 
       {campaignMode && camp ? (
