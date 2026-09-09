@@ -17,19 +17,9 @@ export const TRAPS: TrapDef[] = [
     tag: 'poison',
     damage: 4,
     dmgPerLevel: 1,
-    applies: { kind: 'poison', rooms: 3 },
-    desc: 'Bleeds them for three rooms. Ticks ignore armour, so tanks rot in it.',
+    applies: { kind: 'poison', days: 3 },
+    desc: 'Rots them for three days. Ticks ignore armour, so tanks rot in it.',
     goldCost: 16
-  },
-  {
-    id: 'oil',
-    name: 'Oil Slick',
-    tag: 'oil',
-    damage: 0,
-    dmgPerLevel: 0,
-    applies: { kind: 'oiled', rooms: 3 },
-    desc: 'Harmless on its own. Put fire after it.',
-    goldCost: 8
   },
   {
     id: 'fire',
@@ -37,7 +27,7 @@ export const TRAPS: TrapDef[] = [
     tag: 'fire',
     damage: 11,
     dmgPerLevel: 2.5,
-    applies: { kind: 'burn', rooms: 2 },
+    applies: { kind: 'burn', days: 3 },
     desc: 'Sets them alight. Against an oiled hero it more than doubles.',
     goldCost: 18
   },
@@ -47,19 +37,9 @@ export const TRAPS: TrapDef[] = [
     tag: 'frost',
     damage: 7,
     dmgPerLevel: 1.5,
-    applies: { kind: 'chill', rooms: 2 },
+    applies: { kind: 'chill', days: 2 },
     desc: 'Chills them: dodge collapses and armour thins. Set up anything that swings.',
     goldCost: 16
-  },
-  {
-    id: 'net',
-    name: 'Net Trap',
-    tag: 'bind',
-    damage: 3,
-    dmgPerLevel: 0.5,
-    applies: { kind: 'bound', rooms: 2 },
-    desc: 'Binds them fast. No dodging, no raging, and physical hits land half again as hard.',
-    goldCost: 18
   }
 ];
 

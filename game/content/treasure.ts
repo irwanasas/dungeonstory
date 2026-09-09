@@ -17,7 +17,7 @@ export const TREASURES: TreasureDef[] = [
     gold: 12,
     goldPerLevel: 4,
     lure: 0.5,
-    applies: { kind: 'greedy', rooms: 99 },
+    applies: { kind: 'greedy', days: 99 },
     desc: 'Whoever takes it will not leave without more. A looted hero can never flee — they die here instead.',
     goldCost: 28
   }

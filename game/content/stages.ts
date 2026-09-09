@@ -1,4 +1,4 @@
-import type { StageDef } from '../types';
+import type { ExpTier, StageDef } from '../types';
 
 interface Seed {
   title: string;
@@ -16,13 +16,13 @@ const SEEDS: Seed[] = [
   { title: 'The Long Cough', teaches: 'Poison ticks for three rooms and ignores armour. Tanks rot in it.', heroes: ['paladin'], traps: ['poison'], lord: 2, heroLevel: 1 },
   { title: 'Only So Many', teaches: 'The same trap or monster fits in two rooms at most. Mix them, or leave a room empty.', heroes: ['paladin', 'druid'], lord: 1, heroLevel: 2 },
   { title: 'The Green Mender', teaches: 'The Druid heals every round. Out-damage her or burst her down.', heroes: ['druid'], lord: 2, heroLevel: 2 },
-  { title: 'Slick', teaches: 'Oil does nothing alone.', heroes: ['paladin', 'druid'], traps: ['oil'], lord: 2, heroLevel: 2 },
-  { title: 'Ignition', teaches: 'Oil Slick, then Fire Jet. Order is the whole trick.', heroes: ['paladin', 'druid', 'berserker'], traps: ['fire'], lord: 2, heroLevel: 3 },
+  { title: 'Slick', teaches: 'Oiled and Bound no longer come from your rooms. The road does that to them.', heroes: ['paladin', 'druid'], lord: 2, heroLevel: 2 },
+  { title: 'Ignition', teaches: 'When the road leaves a hero oiled, Fire Jet more than doubles. Build for the day it happens.', heroes: ['paladin', 'druid', 'berserker'], traps: ['fire'], lord: 2, heroLevel: 3 },
   { title: 'Bloodmane', teaches: 'Wounding the Berserker makes him stronger. He never retreats.', heroes: ['berserker'], lord: 2, heroLevel: 3 },
   { title: 'Deep Cold', teaches: 'Frost strips dodge and thins armour. It sets up everything else.', heroes: ['berserker', 'trickster'], traps: ['frost'], lord: 3, heroLevel: 3 },
   { title: 'The Unseen', teaches: 'The Trickster dodges half of everything and disarms traps. Chill her first.', heroes: ['trickster'], lord: 3, heroLevel: 4 },
   { title: 'Two Quick Hands', teaches: 'Goblins swing twice. Against a chilled hero that is four chances to land.', heroes: ['trickster', 'paladin'], monsters: ['archer'], lord: 3, heroLevel: 4 },
-  { title: 'Tangled', teaches: 'A Net binds. Bound heroes cannot dodge and cannot rage.', heroes: ['berserker', 'trickster'], traps: ['net'], lord: 3, heroLevel: 4 },
+  { title: 'Tangled', teaches: 'A bound hero cannot dodge and cannot rage. Anything that swings punishes them for it.', heroes: ['berserker', 'trickster'], lord: 3, heroLevel: 4 },
   { title: 'Nightfall', teaches: 'The Assassin deletes one monster instantly, then has nothing left.', heroes: ['assassin'], monsters: ['slime'], lord: 4, heroLevel: 5 },
   { title: 'Split Decision', teaches: 'A Slime splits and keeps coming. Burst heroes cannot finish it.', heroes: ['assassin', 'trickster'], lord: 4, heroLevel: 5 },
   { title: 'Bait', teaches: 'Treasure makes greedy heroes linger — right inside whatever is killing them.', heroes: ['trickster', 'assassin'], treasure: ['hoard'], lord: 4, heroLevel: 5 },
@@ -57,4 +57,10 @@ export function unlockStageOf(id: string): number {
 
 export function stageDef(id: number): StageDef {
   return STAGES[Math.min(Math.max(1, id), STAGE_MAX) - 1];
+}
+
+export function tierOf(id: number): ExpTier {
+  if (id <= 7) return 'early';
+  if (id <= 14) return 'mid';
+  return 'late';
 }

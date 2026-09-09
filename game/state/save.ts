@@ -1,6 +1,9 @@
 import type { HeroRecord, RoomSlot, WorldState } from '../types';
 import { EDITABLE_ROOMS, MAX_PER_ID } from '../types';
 import { STAGES } from '../content/stages';
+import { TRAPS } from '../content/traps';
+import { MONSTERS } from '../content/monsters';
+import { TREASURES } from '../content/treasure';
 import { defaultWorld, normalizeWorld } from './world';
 
 export interface GameStats {
@@ -21,6 +24,7 @@ export interface LegacyEntry {
 }
 
 export interface GameState {
+  version: number;
   gold: number;
   souls: number;
   mode: 'stage' | 'arcade';
@@ -45,18 +49,27 @@ export interface GameState {
 }
 
 const KEY = 'own_a_dungeon_v1';
+export const SAVE_VERSION = 2;
 export const FAME_MAX = 20;
 const DEFAULT_LORD_WEAPON = 'lord-physical';
 
-export function unlockedFor(stage: number): string[] {
-  const ids = new Set<string>(['spike']);
-  for (const s of STAGES) {
-    if (s.id > stage) break;
-    s.unlockTraps.forEach((id) => ids.add(id));
-    s.unlockMonsters.forEach((id) => ids.add(id));
-    s.unlockTreasure.forEach((id) => ids.add(id));
-  }
-  return [...ids];
+const RETIRED_CONTENT = new Set(['oil', 'net']);
+
+function contentIds(kind: RoomSlot['kind']): string[] {
+  if (kind === 'trap') return TRAPS.map((x) => x.id);
+  if (kind === 'monster') return MONSTERS.map((x) => x.id);
+  if (kind === 'treasure') return TREASURES.map((x) => x.id);
+  return [];
+}
+
+export function unlockedFor(_stage: number): string[] {
+  return [...contentIds('trap'), ...contentIds('monster'), ...contentIds('treasure')];
+}
+
+function keepSlot(slot: RoomSlot): boolean {
+  if (slot.kind === 'empty') return true;
+  if (RETIRED_CONTENT.has(slot.id)) return false;
+  return contentIds(slot.kind).includes(slot.id);
 }
 
 function emptyRooms(): RoomSlot[] {
@@ -93,6 +106,7 @@ function enforceCaps(rooms: RoomSlot[]): RoomSlot[] {
 
 export function defaultState(): GameState {
   return {
+    version: SAVE_VERSION,
     gold: 30,
     souls: 0,
     mode: 'stage',
@@ -136,11 +150,15 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
     lordLevel:
       typeof saved.lordLevel === 'number' ? saved.lordLevel : typeof kingLevel === 'number' ? kingLevel : base.lordLevel
   };
-  const rooms = Array.isArray(input.rooms) ? input.rooms.slice(0, EDITABLE_ROOMS) : [];
+  const rooms = (Array.isArray(input.rooms) ? input.rooms.slice(0, EDITABLE_ROOMS) : []).map((slot) =>
+    keepSlot(slot) ? slot : { kind: 'empty' as const }
+  );
   while (rooms.length < EDITABLE_ROOMS) rooms.push({ kind: 'empty' });
+  merged.version = SAVE_VERSION;
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
-  merged.unlocked = [...new Set([...unlockedFor(Math.max(merged.stage, merged.maxStageCleared + 1)), ...merged.bought])];
+  merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));
+  merged.unlocked = unlockedFor(merged.stage);
   return merged;
 }
 

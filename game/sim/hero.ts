@@ -3,6 +3,7 @@ import type {
   HeroDef,
   HeroInstance,
   HeroRecord,
+  MonsterUnit,
   RaidEvent,
   StatusKind,
   Tag,
@@ -68,9 +69,20 @@ function evasionOf(hero: HeroInstance, def: HeroDef): number {
   return Math.max(0, Math.min(0.85, e));
 }
 
-export function atkMultOf(hero: HeroInstance): number {
+export function atkMultOfList(status: ActiveStatus[]): number {
   let m = 1;
-  for (const s of hero.status) m *= statusDef(s.kind).atkMult;
+  for (const s of status) m *= statusDef(s.kind).atkMult;
+  return m;
+}
+
+export function defMultOfList(status: ActiveStatus[]): number {
+  let m = 1;
+  for (const s of status) m *= statusDef(s.kind).defMult;
+  return m;
+}
+
+export function atkMultOf(hero: HeroInstance): number {
+  let m = atkMultOfList(hero.status);
   if (hero.raged) {
     const r = heroDef(hero.defId).rage;
     if (r) m *= r.atkMult;
@@ -79,9 +91,7 @@ export function atkMultOf(hero: HeroInstance): number {
 }
 
 export function defMultOf(hero: HeroInstance): number {
-  let m = 1;
-  for (const s of hero.status) m *= statusDef(s.kind).defMult;
-  return m;
+  return defMultOfList(hero.status);
 }
 
 export function fleeThresholdOf(hero: HeroInstance, def: HeroDef): number {
@@ -93,7 +103,7 @@ export function fleeThresholdOf(hero: HeroInstance, def: HeroDef): number {
 export function applyStatus(
   hero: HeroInstance,
   kind: StatusKind,
-  rooms: number,
+  days: number,
   def: HeroDef,
   out: RaidEvent[],
   potency = 1
@@ -101,16 +111,26 @@ export function applyStatus(
   if (kind === 'fear' && def.fearImmune) return;
   const sd = statusDef(kind);
   if (sd.tags.length > 0 && sd.tags.every((tag) => def.resist.includes(tag))) {
-    rooms = Math.max(1, Math.floor(rooms / 2));
+    days = Math.max(1, Math.floor(days / 2));
     potency *= 0.5;
   }
   const existing = hero.status.find((s) => s.kind === kind);
   if (existing) {
-    existing.roomsLeft = Math.max(existing.roomsLeft, rooms);
+    existing.ticksLeft = Math.max(existing.ticksLeft, days);
     existing.potency = Math.max(existing.potency, potency);
     return;
   }
-  hero.status.push({ kind, roomsLeft: rooms, potency });
+  hero.status.push({ kind, ticksLeft: days, potency });
+  out.push({ t: 'statusOn', kind });
+}
+
+export function applyStatusToUnit(unit: MonsterUnit, kind: StatusKind, days: number, out: RaidEvent[]): void {
+  const existing = unit.status.find((s) => s.kind === kind);
+  if (existing) {
+    existing.ticksLeft = Math.max(existing.ticksLeft, days);
+    return;
+  }
+  unit.status.push({ kind, ticksLeft: days, potency: 1 });
   out.push({ t: 'statusOn', kind });
 }
 
@@ -136,21 +156,34 @@ export function tickStatusDamage(hero: HeroInstance, out: RaidEvent[]): Tag | nu
   return killedBy;
 }
 
-export function advanceStatuses(hero: HeroInstance, out: RaidEvent[]): void {
+export function advanceStatusList(status: ActiveStatus[]): { kept: ActiveStatus[]; expired: StatusKind[] } {
   const kept: ActiveStatus[] = [];
-  for (const s of hero.status) {
-    const left = s.roomsLeft - 1;
-    if (left > 0) kept.push({ ...s, roomsLeft: left });
-    else out.push({ t: 'statusOff', kind: s.kind });
+  const expired: StatusKind[] = [];
+  for (const s of status) {
+    const left = s.ticksLeft - 1;
+    if (left > 0) kept.push({ ...s, ticksLeft: left });
+    else expired.push(s.kind);
   }
+  return { kept, expired };
+}
+
+export function advanceStatuses(hero: HeroInstance, out: RaidEvent[]): void {
+  const { kept, expired } = advanceStatusList(hero.status);
   hero.status = kept;
+  for (const kind of expired) out.push({ t: 'statusOff', kind });
+}
+
+export const COMBAT_SCOPED: StatusKind[] = ['brace', 'vanish'];
+
+export function clearCombatScoped(hero: HeroInstance, out: RaidEvent[]): void {
+  for (const kind of COMBAT_SCOPED) clearStatus(hero, kind, out);
 }
 
 export interface IncomingHit {
   amount: number;
   tag: Tag;
   source: 'trap' | 'monster' | 'lord';
-  applies: { kind: StatusKind; rooms: number } | null;
+  applies: { kind: StatusKind; days: number } | null;
   ignoreEvasion?: boolean;
 }
 
@@ -188,8 +221,8 @@ export function resolveHit(
 
   out.push({ t: 'damage', source: hit.source, tag: hit.tag, dmg, evaded: false, heroHp: hero.hp, heroMaxHp: hero.maxHp });
 
-  if (hit.applies) applyStatus(hero, hit.applies.kind, hit.applies.rooms, def, out);
-  if (extra) applyStatus(hero, extra, statusDef(extra).rooms, def, out, inter && inter.id === 'poison-stack' ? 1.5 : 1);
+  if (hit.applies) applyStatus(hero, hit.applies.kind, hit.applies.days, def, out);
+  if (extra) applyStatus(hero, extra, statusDef(extra).duration, def, out, inter && inter.id === 'poison-stack' ? 1.5 : 1);
 
   return { dmg, evaded: false };
 }

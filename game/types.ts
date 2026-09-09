@@ -18,7 +18,7 @@ export interface StatusDef {
   kind: StatusKind;
   name: string;
   short: string;
-  rooms: number;
+  duration: number;
   dmgPerTick: number;
   evasionDelta: number;
   atkMult: number;
@@ -31,7 +31,7 @@ export interface StatusDef {
 
 export interface ActiveStatus {
   kind: StatusKind;
-  roomsLeft: number;
+  ticksLeft: number;
   potency: number;
 }
 
@@ -111,7 +111,7 @@ export interface MonsterDef {
   evasion: number;
   splitAt: number;
   ranged: boolean;
-  applies: { kind: StatusKind; rooms: number } | null;
+  applies: { kind: StatusKind; days: number } | null;
   desc: string;
   goldCost: number;
   goldValue: number;
@@ -124,7 +124,7 @@ export interface TrapDef {
   tag: Tag;
   damage: number;
   dmgPerLevel: number;
-  applies: { kind: StatusKind; rooms: number } | null;
+  applies: { kind: StatusKind; days: number } | null;
   desc: string;
   goldCost: number;
 }
@@ -135,7 +135,7 @@ export interface TreasureDef {
   gold: number;
   goldPerLevel: number;
   lure: number;
-  applies: { kind: StatusKind; rooms: number } | null;
+  applies: { kind: StatusKind; days: number } | null;
   desc: string;
   goldCost: number;
 }
@@ -158,6 +158,19 @@ export interface Dungeon {
   lordLevel: number;
   lordWeaponId: string;
 }
+
+export interface MonsterUnit {
+  hp: number | null;
+  status: ActiveStatus[];
+  dead: boolean;
+}
+
+export interface MonsterRuntime {
+  id: string;
+  units: MonsterUnit[];
+}
+
+export type ExpTier = 'early' | 'mid' | 'late';
 
 export interface StageDef {
   id: number;
