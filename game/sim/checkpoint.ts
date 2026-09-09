@@ -2,6 +2,7 @@ import type {
   BuiltRoom,
   HeroDef,
   HeroInstance,
+  MonsterDef,
   MonsterRuntime,
   MonsterUnit,
   RaidEvent,
@@ -16,7 +17,16 @@ import { trapDef } from '../content/traps';
 import { treasureDef } from '../content/treasure';
 import { resolveHit, tickStatusDamage } from './hero';
 import { decideDisarm, decideLoot, lootNote } from './ai';
-import { fight, lordEnemy, monsterEnemy, tagMult, type Ctx, type Enemy } from './combat';
+import {
+  fightGroup,
+  lordEnemy,
+  monsterEnemy,
+  tagMult,
+  toFoe,
+  type Combatant,
+  type Foe,
+  type PartyCtx
+} from './combat';
 import type { Rng } from './rng';
 
 export interface CombatMember {
@@ -40,6 +50,7 @@ export interface CheckpointInput {
   rng: Rng;
   lord: { level: number; weaponId: string } | null;
   killedByTag: Tag | null;
+  foeCap?: number;
 }
 
 export interface CheckpointResult {
@@ -54,26 +65,46 @@ export interface CheckpointResult {
   procs: ProcOffer[];
 }
 
-function seedUnit(enemy: Enemy, unit: MonsterUnit | undefined): void {
-  if (!unit || unit.hp === null) return;
-  enemy.hp = Math.min(enemy.maxHp, Math.max(0, unit.hp));
+function buildFoes(
+  def: MonsterDef,
+  level: number,
+  world: WorldModifiers,
+  runtime: MonsterRuntime | null,
+  count: number
+): Foe[] {
+  const foes: Foe[] = [];
+  for (let i = 0; i < count; i++) {
+    const unit = runtime ? runtime.units[i] : undefined;
+    if (unit && unit.dead) continue;
+    const enemy = monsterEnemy(def, level, world);
+    if (unit && unit.hp !== null) enemy.hp = Math.min(enemy.maxHp, Math.max(0, unit.hp));
+    foes.push(toFoe(enemy, i, unit ? unit.status.map((s) => ({ ...s })) : []));
+  }
+  return foes;
 }
 
-function writeBack(runtime: MonsterRuntime | null, enemy: Enemy): MonsterRuntime | null {
+function writeBack(runtime: MonsterRuntime | null, foes: Foe[], count: number): MonsterRuntime | null {
   if (!runtime) return null;
-  const units = runtime.units.slice();
-  const prev = units[0] || { hp: null, status: [], dead: false };
-  units[0] = { ...prev, hp: enemy.hp, dead: enemy.hp <= 0 };
+  const units: MonsterUnit[] = [];
+  for (let i = 0; i < count; i++) {
+    const foe = foes.find((f) => f.slot === i);
+    const prev = runtime.units[i];
+    if (!foe) {
+      units.push(prev || { hp: null, status: [], dead: true });
+      continue;
+    }
+    units.push({ hp: foe.hp, status: foe.status, dead: foe.hp <= 0 });
+  }
   return { ...runtime, units };
 }
 
 export function runCheckpoint(input: CheckpointInput): CheckpointResult {
   const { built, isThrone, party, world, rng } = input;
   const out: RaidEvent[] = [];
-  const member = party[0];
-  const hero = member.hero;
-  const def = member.def;
-  const ctx: Ctx = { hero, def, rng, out, killedByTag: input.killedByTag, world };
+  const members: Combatant[] = party.map((m) => ({ hero: m.hero, def: m.def, killedByTag: input.killedByTag }));
+  const ctx: PartyCtx = { members, rng, out, world };
+  const multi = members.length > 1;
+  const living = () => members.filter((m) => m.hero.hp > 0);
 
   const result: CheckpointResult = {
     events: out,
@@ -87,6 +118,17 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
     procs: []
   };
 
+  const firstKill = () => members.find((m) => m.hero.hp <= 0 && m.killedByTag)?.killedByTag || input.killedByTag;
+  const setActor = (i: number) => {
+    if (!multi) return;
+    out.push({ t: 'actor', index: i, name: members[i].hero.name, defId: members[i].hero.defId });
+  };
+  const reportDown = (i: number) => {
+    if (!multi || members[i].hero.hp > 0) return;
+    out.push({ t: 'reaction', kind: 'dead' });
+    out.push({ t: 'heroDown' });
+  };
+
   if (isThrone) {
     const spec = input.lord;
     const lord = lordEnemy(lordWeapon(spec ? spec.weaponId : ''), spec ? spec.level : 1, world);
@@ -95,11 +137,11 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
     out.push({ t: 'lordAppear', level: spec ? spec.level : 1, hp: lord.hp, maxHp: lord.maxHp });
     out.push({ t: 'reaction', kind: 'surprise' });
 
-    const res = fight(ctx, lord);
-    result.killedByTag = ctx.killedByTag;
-    result.wiped = res.heroDied;
-    result.cleared = res.enemyDied;
-    result.stalled = !res.heroDied && !res.enemyDied;
+    const res = fightGroup(ctx, [toFoe(lord, 0)]);
+    result.killedByTag = firstKill();
+    result.wiped = res.wiped;
+    result.cleared = res.foesDead;
+    result.stalled = res.stalled;
     return result;
   }
 
@@ -112,65 +154,110 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
 
   if (slot.kind === 'monster') {
     const md = monsterDef(slot.id);
-    const enemy = monsterEnemy(md, built.level, world);
-    seedUnit(enemy, input.runtime ? input.runtime.units[0] : undefined);
-    out.push({ t: 'monsterAppear', monsterId: md.id, hp: enemy.hp, maxHp: enemy.maxHp });
+    const count = Math.max(1, Math.min(md.count, input.foeCap === undefined ? md.count : input.foeCap));
+    const foes = buildFoes(md, built.level, world, input.runtime, count);
+    if (foes.length === 0) {
+      result.cleared = true;
+      result.runtime = input.runtime;
+      return result;
+    }
+    for (const foe of foes) {
+      out.push({
+        t: 'monsterAppear',
+        monsterId: md.id,
+        hp: foe.hp,
+        maxHp: foe.maxHp,
+        ...(foes.length > 1 ? { slot: foe.slot } : {})
+      });
+    }
     out.push({ t: 'reaction', kind: 'surprise' });
-    const res = fight(ctx, enemy);
-    result.killedByTag = ctx.killedByTag;
-    result.runtime = writeBack(input.runtime, enemy);
-    result.wiped = res.heroDied;
-    result.cleared = !res.heroDied;
-    result.stalled = !res.heroDied && !res.enemyDied;
+    const res = fightGroup(ctx, foes);
+    result.killedByTag = firstKill();
+    result.runtime = writeBack(input.runtime, foes, count);
+    result.wiped = res.wiped;
+    result.cleared = !res.wiped && res.foesDead;
+    result.stalled = res.stalled;
     return result;
   }
 
-  const tickKill = tickStatusDamage(hero, out);
-  if (hero.hp <= 0) {
-    result.killedByTag = tickKill || ctx.killedByTag;
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+    if (m.hero.hp <= 0) continue;
+    setActor(i);
+    const tickKill = tickStatusDamage(m.hero, out);
+    if (m.hero.hp <= 0) m.killedByTag = tickKill || m.killedByTag;
+    reportDown(i);
+  }
+  if (living().length === 0) {
+    result.killedByTag = firstKill();
     result.wiped = true;
     return result;
   }
 
   if (slot.kind === 'trap') {
     const td = trapDef(slot.id);
-    if (decideDisarm(hero, def, rng)) {
-      out.push({ t: 'decision', intent: 'disarm', note: `${hero.name} spots the ${td.name} and picks it apart.` });
+    const disarmer = members.findIndex((m) => m.hero.hp > 0 && decideDisarm(m.hero, m.def, rng));
+    if (disarmer >= 0) {
+      const m = members[disarmer];
+      setActor(disarmer);
+      out.push({ t: 'decision', intent: 'disarm', note: `${m.hero.name} spots the ${td.name} and picks it apart.` });
       out.push({ t: 'trapFire', trapId: td.id, disarmed: true });
       out.push({ t: 'reaction', kind: 'relief' });
     } else {
       out.push({ t: 'trapFire', trapId: td.id, disarmed: false });
       const amount = (td.damage + (built.level - 1) * td.dmgPerLevel) * world.trapDamage * tagMult(world, td.tag);
-      const res = resolveHit(hero, def, { amount, tag: td.tag, source: 'trap', applies: td.applies }, rng, out);
-      out.push({ t: 'reaction', kind: res.evaded ? 'surprise' : res.dmg > 0 ? 'pain' : 'surprise' });
-      if (hero.hp <= 0) {
-        result.killedByTag = td.tag;
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (m.hero.hp <= 0) continue;
+        setActor(i);
+        const res = resolveHit(m.hero, m.def, { amount, tag: td.tag, source: 'trap', applies: td.applies }, rng, out);
+        out.push({ t: 'reaction', kind: res.evaded ? 'surprise' : res.dmg > 0 ? 'pain' : 'surprise' });
+        if (m.hero.hp <= 0) m.killedByTag = td.tag;
+        reportDown(i);
+      }
+      if (living().length === 0) {
+        result.killedByTag = firstKill();
         result.wiped = true;
         return result;
       }
     }
   } else if (slot.kind === 'treasure') {
     const vd = treasureDef(slot.id);
-    const intent = decideLoot(def, vd, rng);
-    out.push({ t: 'decision', intent, note: lootNote(hero, intent === 'loot', vd) });
+    const lead = members.findIndex((m) => m.hero.hp > 0);
+    const m = members[lead];
+    const intent = decideLoot(m.def, vd, rng);
+    setActor(lead);
+    out.push({ t: 'decision', intent, note: lootNote(m.hero, intent === 'loot', vd) });
     if (intent === 'loot') {
       const gold = Math.round(vd.gold + (built.level - 1) * vd.goldPerLevel);
-      hero.looted += gold;
+      m.hero.looted += gold;
       result.looted = gold;
       out.push({ t: 'treasureTaken', treasureId: vd.id, gold });
       out.push({ t: 'reaction', kind: 'greed' });
       if (vd.applies) {
-        resolveHit(
-          hero,
-          def,
-          { amount: 0, tag: 'arcane', source: 'trap', applies: vd.applies, ignoreEvasion: true },
-          rng,
-          out
-        );
+        for (let i = 0; i < members.length; i++) {
+          const target = members[i];
+          if (target.hero.hp <= 0) continue;
+          setActor(i);
+          resolveHit(
+            target.hero,
+            target.def,
+            { amount: 0, tag: 'arcane', source: 'trap', applies: vd.applies, ignoreEvasion: true },
+            rng,
+            out
+          );
+        }
       }
-      const lootKill = tickStatusDamage(hero, out);
-      if (hero.hp <= 0) {
-        result.killedByTag = lootKill || ctx.killedByTag;
+      for (let i = 0; i < members.length; i++) {
+        const target = members[i];
+        if (target.hero.hp <= 0) continue;
+        setActor(i);
+        const lootKill = tickStatusDamage(target.hero, out);
+        if (target.hero.hp <= 0) target.killedByTag = lootKill || target.killedByTag;
+        reportDown(i);
+      }
+      if (living().length === 0) {
+        result.killedByTag = firstKill();
         result.wiped = true;
         return result;
       }

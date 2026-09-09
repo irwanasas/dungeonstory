@@ -705,3 +705,57 @@
   padding: 11px 10px;
   min-height: 44px;
 }
+
+.bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bar-group.split {
+  flex-direction: row;
+  gap: 5px;
+}
+
+.bar-group.split .bar-row {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bar-row.compact .bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-party {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.day-hero {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--bone);
+  letter-spacing: 0.03em;
+}
+
+.day-hero.hurt {
+  color: var(--ember-lit);
+}
+
+.day-hero-hp {
+  color: var(--muted);
+}
+
+.day-party-none {
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--muted);
+}

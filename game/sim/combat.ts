@@ -1,4 +1,13 @@
-import type { HeroDef, HeroInstance, MonsterDef, RaidEvent, StatusKind, Tag, WorldModifiers } from '../types';
+import type {
+  ActiveStatus,
+  HeroDef,
+  HeroInstance,
+  MonsterDef,
+  RaidEvent,
+  StatusKind,
+  Tag,
+  WorldModifiers
+} from '../types';
 import { LORD } from '../content/monsters';
 import type { LordWeapon } from '../content/lordWeapons';
 import { atkMultOf, defMultOf, heal, resolveHit, tickStatusDamage, traitBlocked } from './hero';
@@ -72,6 +81,29 @@ export function lordEnemy(weapon: LordWeapon, level: number, world: WorldModifie
   };
 }
 
+export interface Foe extends Enemy {
+  slot: number;
+  splitDone: boolean;
+  status: ActiveStatus[];
+}
+
+export function toFoe(enemy: Enemy, slot: number, status: ActiveStatus[] = []): Foe {
+  return { ...enemy, slot, splitDone: enemy.splitAt <= 0, status };
+}
+
+export interface Combatant {
+  hero: HeroInstance;
+  def: HeroDef;
+  killedByTag: Tag | null;
+}
+
+export interface PartyCtx {
+  members: Combatant[];
+  rng: Rng;
+  out: RaidEvent[];
+  world: WorldModifiers;
+}
+
 export interface Ctx {
   hero: HeroInstance;
   def: HeroDef;
@@ -85,82 +117,170 @@ export function tagMult(world: WorldModifiers, tag: Tag): number {
   return world.tagDamage[tag] || 1;
 }
 
-export function enemyTurn(ctx: Ctx, enemy: Enemy): void {
-  ctx.out.push({ t: 'enemyWindup', ranged: enemy.ranged });
-  for (let hit = 0; hit < enemy.hitsPerRound; hit++) {
-    const armour = ctx.hero.def * defMultOf(ctx.hero) * (1 - enemy.defPierce);
-    const raw = Math.max(1, enemy.atk - armour * 0.5) * tagMult(ctx.world, enemy.tag);
+const alive = (m: Combatant) => m.hero.hp > 0;
+const standing = (f: Foe) => f.hp > 0;
+
+function foeStrike(ctx: PartyCtx, foe: Foe, target: Combatant, tagSlot: boolean): void {
+  ctx.out.push({ t: 'enemyWindup', ranged: foe.ranged, ...(tagSlot ? { slot: foe.slot } : {}) });
+  for (let hit = 0; hit < foe.hitsPerRound; hit++) {
+    if (target.hero.hp <= 0) return;
+    const armour = target.hero.def * defMultOf(target.hero) * (1 - foe.defPierce);
+    const raw = Math.max(1, foe.atk - armour * 0.5) * tagMult(ctx.world, foe.tag);
     const res = resolveHit(
-      ctx.hero,
-      ctx.def,
-      { amount: raw, tag: enemy.tag, source: enemy.source, applies: enemy.applies },
+      target.hero,
+      target.def,
+      { amount: raw, tag: foe.tag, source: foe.source, applies: foe.applies },
       ctx.rng,
       ctx.out
     );
     if (res.dmg > 0) ctx.out.push({ t: 'reaction', kind: 'pain' });
-    if (ctx.hero.hp <= 0) {
-      ctx.killedByTag = enemy.tag;
+    if (target.hero.hp <= 0) {
+      target.killedByTag = foe.tag;
       return;
     }
   }
 }
 
-export function heroTurn(ctx: Ctx, enemy: Enemy, round: number, split: { done: boolean }): void {
-  const miss = ctx.rng() < enemy.evasion;
-  let dmg = ctx.hero.atk * atkMultOf(ctx.hero);
-  const crit = round === 0 && ctx.def.burst > 1 && !traitBlocked(ctx.hero, 'burst');
-  if (crit) dmg *= ctx.def.burst;
-  if (!traitBlocked(ctx.hero, 'ramp')) dmg *= 1 + Math.min(ctx.def.rampCap, ctx.def.rampPerRound * round);
-  dmg = Math.max(1, Math.round(dmg - enemy.def));
+function memberStrike(ctx: PartyCtx, m: Combatant, foe: Foe, round: number, tagSlot: boolean): void {
+  const miss = ctx.rng() < foe.evasion;
+  let dmg = m.hero.atk * atkMultOf(m.hero);
+  const crit = round === 0 && m.def.burst > 1 && !traitBlocked(m.hero, 'burst');
+  if (crit) dmg *= m.def.burst;
+  if (!traitBlocked(m.hero, 'ramp')) dmg *= 1 + Math.min(m.def.rampCap, m.def.rampPerRound * round);
+  dmg = Math.max(1, Math.round(dmg - foe.def));
   if (miss) dmg = 0;
-  enemy.hp = Math.max(0, enemy.hp - dmg);
-  ctx.out.push({ t: 'heroAttack', dmg, crit, miss, targetHp: enemy.hp, targetMaxHp: enemy.maxHp });
+  foe.hp = Math.max(0, foe.hp - dmg);
+  ctx.out.push({
+    t: 'heroAttack',
+    dmg,
+    crit,
+    miss,
+    targetHp: foe.hp,
+    targetMaxHp: foe.maxHp,
+    ...(tagSlot ? { slot: foe.slot } : {})
+  });
 
-  if (!split.done && enemy.splitAt > 0 && enemy.hp > 0 && enemy.hp <= enemy.maxHp * enemy.splitAt) {
-    split.done = true;
-    enemy.hp = Math.round(enemy.maxHp * enemy.splitAt);
-    ctx.out.push({ t: 'monsterSplit', monsterId: enemy.id, hp: enemy.hp, maxHp: enemy.maxHp });
+  if (!foe.splitDone && foe.splitAt > 0 && foe.hp > 0 && foe.hp <= foe.maxHp * foe.splitAt) {
+    foe.splitDone = true;
+    foe.hp = Math.round(foe.maxHp * foe.splitAt);
+    ctx.out.push({
+      t: 'monsterSplit',
+      monsterId: foe.id,
+      hp: foe.hp,
+      maxHp: foe.maxHp,
+      ...(tagSlot ? { slot: foe.slot } : {})
+    });
   }
 }
 
-export function fight(ctx: Ctx, enemy: Enemy): { heroDied: boolean; enemyDied: boolean } {
-  const split = { done: enemy.splitAt <= 0 };
-  let panicked = false;
+function pickTarget(ctx: PartyCtx, foe: Foe): number {
+  const idx = ctx.members.map((m, i) => i).filter((i) => alive(ctx.members[i]));
+  if (idx.length === 0) return -1;
+  if (idx.length === 1) return idx[0];
+  if (foe.ranged) {
+    return idx.reduce((low, i) => (ctx.members[i].hero.hp < ctx.members[low].hero.hp ? i : low), idx[0]);
+  }
+  return idx[Math.floor(ctx.rng() * idx.length) % idx.length];
+}
+
+export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDead: boolean; stalled: boolean } {
+  const multiFoe = foes.length > 1;
+  const multiMember = ctx.members.length > 1;
+  const panicked = new Set<number>();
+
+  const anyAlive = () => ctx.members.some(alive);
+  const anyStanding = () => foes.some(standing);
+
+  const setActor = (i: number) => {
+    if (!multiMember) return;
+    const m = ctx.members[i];
+    ctx.out.push({ t: 'actor', index: i, name: m.hero.name, defId: m.hero.defId });
+  };
+
+  const downed = new Set<number>();
+  const reportDown = (i: number) => {
+    if (!multiMember || downed.has(i) || alive(ctx.members[i])) return;
+    downed.add(i);
+    ctx.out.push({ t: 'reaction', kind: 'dead' });
+    ctx.out.push({ t: 'heroDown' });
+  };
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const tickKill = tickStatusDamage(ctx.hero, ctx.out);
-    if (ctx.hero.hp <= 0) {
-      ctx.killedByTag = tickKill || ctx.killedByTag;
-      return { heroDied: true, enemyDied: false };
+    for (let i = 0; i < ctx.members.length; i++) {
+      const m = ctx.members[i];
+      if (!alive(m)) continue;
+      setActor(i);
+      const tickKill = tickStatusDamage(m.hero, ctx.out);
+      if (m.hero.hp <= 0) m.killedByTag = tickKill || m.killedByTag;
+      reportDown(i);
+    }
+    if (!anyAlive()) return { wiped: true, foesDead: false, stalled: false };
+
+    for (let i = 0; i < ctx.members.length; i++) {
+      const m = ctx.members[i];
+      if (!alive(m)) continue;
+      setActor(i);
+      if (m.def.regen > 0 && !traitBlocked(m.hero, 'regen')) heal(m.hero, m.hero.maxHp * m.def.regen, ctx.out);
+      tryAbility(m.hero, m.def, ctx.out);
     }
 
-    if (ctx.def.regen > 0 && !traitBlocked(ctx.hero, 'regen')) heal(ctx.hero, ctx.hero.maxHp * ctx.def.regen, ctx.out);
-    tryAbility(ctx.hero, ctx.def, ctx.out);
+    const acting = foes.filter((f) => standing(f) && round % f.cadence === f.cadence - 1);
 
-    const enemyActs = round % enemy.cadence === enemy.cadence - 1;
-
-    if (enemy.strikesFirst && enemyActs) {
-      enemyTurn(ctx, enemy);
-      if (ctx.hero.hp <= 0) return { heroDied: true, enemyDied: false };
+    for (const foe of acting) {
+      if (!foe.strikesFirst) continue;
+      const ti = pickTarget(ctx, foe);
+      if (ti < 0) break;
+      setActor(ti);
+      foeStrike(ctx, foe, ctx.members[ti], multiFoe);
+      reportDown(ti);
     }
+    if (!anyAlive()) return { wiped: true, foesDead: false, stalled: false };
 
-    heroTurn(ctx, enemy, round, split);
-    if (enemy.hp <= 0) {
-      if (enemy.source === 'monster') ctx.out.push({ t: 'monsterDown', monsterId: enemy.id });
-      return { heroDied: false, enemyDied: true };
+    for (let i = 0; i < ctx.members.length; i++) {
+      const m = ctx.members[i];
+      if (!alive(m)) continue;
+      const foe = foes.find(standing);
+      if (!foe) break;
+      setActor(i);
+      memberStrike(ctx, m, foe, round, multiFoe);
+      if (foe.hp <= 0 && foe.source === 'monster') {
+        ctx.out.push({ t: 'monsterDown', monsterId: foe.id, ...(multiFoe ? { slot: foe.slot } : {}) });
+      }
     }
+    if (!anyStanding()) return { wiped: false, foesDead: true, stalled: false };
 
-    if (!enemy.strikesFirst) {
-      if (enemyActs) enemyTurn(ctx, enemy);
-      else ctx.out.push({ t: 'enemyWindup', ranged: enemy.ranged });
-      if (ctx.hero.hp <= 0) return { heroDied: true, enemyDied: false };
+    for (const foe of foes) {
+      if (foe.strikesFirst || !standing(foe)) continue;
+      if (round % foe.cadence === foe.cadence - 1) {
+        const ti = pickTarget(ctx, foe);
+        if (ti < 0) break;
+        setActor(ti);
+        foeStrike(ctx, foe, ctx.members[ti], multiFoe);
+        reportDown(ti);
+      } else {
+        ctx.out.push({ t: 'enemyWindup', ranged: foe.ranged, ...(multiFoe ? { slot: foe.slot } : {}) });
+      }
     }
+    if (!anyAlive()) return { wiped: true, foesDead: false, stalled: false };
 
-    if (!panicked && hpPct(ctx.hero) <= 0.3) {
-      panicked = true;
+    for (let i = 0; i < ctx.members.length; i++) {
+      const m = ctx.members[i];
+      if (!alive(m) || panicked.has(i) || hpPct(m.hero) > 0.3) continue;
+      panicked.add(i);
+      setActor(i);
       ctx.out.push({ t: 'reaction', kind: 'panic' });
     }
   }
 
-  return { heroDied: false, enemyDied: false };
+  return { wiped: false, foesDead: false, stalled: true };
+}
+
+export function fight(ctx: Ctx, enemy: Enemy): { heroDied: boolean; enemyDied: boolean } {
+  const member: Combatant = { hero: ctx.hero, def: ctx.def, killedByTag: ctx.killedByTag };
+  const party: PartyCtx = { members: [member], rng: ctx.rng, out: ctx.out, world: ctx.world };
+  const foe = toFoe(enemy, 0);
+  const res = fightGroup(party, [foe]);
+  enemy.hp = foe.hp;
+  ctx.killedByTag = member.killedByTag;
+  return { heroDied: res.wiped, enemyDied: res.foesDead };
 }

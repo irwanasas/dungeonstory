@@ -138,35 +138,35 @@ export default function DungeonView({
               );
             })}
 
-            {view.foe && (
-              <div
-                className={'actor foe ' + view.foe.cls}
-                style={{ ['--x' as string]: `${view.foe.x}px` }}
-              >
-                <img src={view.foe.art} alt="" />
+            {view.foes.map((f) => (
+              <div key={f.slot} className={'actor foe ' + f.cls} style={{ ['--x' as string]: `${f.x}px` }}>
+                <img src={f.art} alt="" />
               </div>
-            )}
+            ))}
 
-            {view.heroShown && (
-              <div
-                className={'actor hero ' + view.heroCls}
-                style={{
-                  ['--x' as string]: `${view.heroX}px`,
-                  transition: `transform ${view.heroMs}ms linear`
-                }}
-              >
-                <img src={view.heroArt} alt="" />
-                {view.badges.length > 0 && (
-                  <div className="badges">
-                    {view.badges.map((b) => (
-                      <span key={b} className={'badge ' + b}>
-                        {b.slice(0, 3).toUpperCase()}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {view.reaction && <div className="reaction">{view.reaction}</div>}
-              </div>
+            {view.party.map((a) =>
+              a.shown ? (
+                <div
+                  key={a.index}
+                  className={'actor hero ' + a.cls}
+                  style={{
+                    ['--x' as string]: `${a.x}px`,
+                    transition: `transform ${a.ms}ms linear`
+                  }}
+                >
+                  <img src={a.art} alt="" />
+                  {a.badges.length > 0 && (
+                    <div className="badges">
+                      {a.badges.map((b) => (
+                        <span key={b} className={'badge ' + b}>
+                          {b.slice(0, 3).toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {a.reaction && <div className="reaction">{a.reaction}</div>}
+                </div>
+              ) : null
             )}
 
             {view.bolt && (
@@ -191,8 +191,17 @@ export default function DungeonView({
       </div>
 
       <div className={'combat-hud' + (view.barsOn ? ' on' : '')}>
-        {view.heroBar && <Bar bar={view.heroBar} />}
-        {view.foeBar && <Bar bar={view.foeBar} />}
+        {(['party', 'foe'] as const).map((side) => {
+          const rows = view.bars.filter((b) => (side === 'foe' ? b.foe : !b.foe));
+          if (rows.length === 0) return null;
+          return (
+            <div key={side} className={'bar-group' + (rows.length > 1 ? ' split' : '')}>
+              {rows.map((b) => (
+                <Bar key={b.id} bar={b} compact={rows.length > 1} />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       {view.callout && (
@@ -212,14 +221,14 @@ export default function DungeonView({
   );
 }
 
-function Bar({ bar }: { bar: import('./useRaidDirector').BarView }) {
+function Bar({ bar, compact }: { bar: import('./useRaidDirector').BarView; compact?: boolean }) {
   const pct = Math.max(0, Math.min(100, (bar.hp / Math.max(1, bar.maxHp)) * 100));
   return (
-    <div className="bar-row">
+    <div className={'bar-row' + (compact ? ' compact' : '')}>
       <div className="bar-top">
         <span className="bar-name">{bar.name}</span>
         <span className="bar-hp">
-          {Math.max(0, bar.hp)}/{bar.maxHp}
+          {compact ? Math.max(0, bar.hp) : `${Math.max(0, bar.hp)}/${bar.maxHp}`}
         </span>
       </div>
       <div className="bar">

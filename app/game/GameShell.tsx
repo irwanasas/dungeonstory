@@ -10,7 +10,7 @@ import { effectCount } from '../../game/state/world';
 import { canPlace, unlockedFor } from '../../game/state/save';
 import { returningNote } from '../../game/state/roster';
 import {
-  actingMember,
+  activeParty,
   advanceDay,
   beginExpedition,
   commitChoice,
@@ -18,7 +18,6 @@ import {
   isCheckpointDay,
   type ExpeditionState
 } from '../../game/state/expedition';
-import { snapshot } from '../../game/sim/hero';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
 import { BuildSheet } from './panels/BuildSheet';
@@ -75,7 +74,6 @@ export default function GameShell() {
   }
 
   const stage = stageDef(state.stage);
-  const tier = state.mode === 'arcade' ? state.wave : state.stage;
   const filled = state.rooms.filter((r) => r.kind !== 'empty').length;
 
   function place(slot: RoomSlot) {
@@ -154,15 +152,21 @@ export default function GameShell() {
   async function nextDay() {
     if (busy || !state || !exp || exp.pending) return;
     const battle = isCheckpointDay(exp);
-    const actor = actingMember(exp);
+    const wave = activeParty(exp);
     const fromRoom = Math.max(-1, exp.checkpoint - 1);
     setStepping(true);
     const outcome = advanceDay(exp, state.world);
     update((s) => ({ ...s, expedition: outcome.exp }));
     sfx(battle ? 'door' : 'tap');
 
-    if (battle && outcome.events.length > 0 && actor) {
-      await play(outcome.events, snapshot(actor.hero), heroArt(actor.hero.defId), fromRoom);
+    if (battle && outcome.events.length > 0 && wave.length > 0) {
+      const seeds = wave.map((m) => ({
+        name: m.hero.name,
+        defId: m.hero.defId,
+        hp: m.hero.hp,
+        maxHp: m.hero.maxHp
+      }));
+      await play(outcome.events, seeds, fromRoom);
     }
     setStepping(false);
   }

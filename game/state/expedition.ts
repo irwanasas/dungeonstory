@@ -26,6 +26,7 @@ import { trapDef } from '../content/traps';
 import { lordWeapon } from '../content/lordWeapons';
 import { HEROES, heroDef } from '../content/heroes';
 import { STAGE_MAX, stageDef, tierOf } from '../content/stages';
+import { makeName } from '../content/names';
 import { legacyFrom, trophiesFrom } from '../content/milestones';
 import { challengeSouls, challengesFrom } from '../content/challenges';
 import {
@@ -39,14 +40,14 @@ import {
   tickStatusDamage
 } from '../sim/hero';
 import { fleeNote, wantsToFlee } from '../sim/ai';
-import { runCheckpoint, type CombatMember } from '../sim/checkpoint';
+import { runCheckpoint } from '../sim/checkpoint';
 import { seeded, type Rng } from '../sim/rng';
 import { checkpointReward, toDungeon } from './economy';
 import { absorbResult } from './roster';
 import { composeModifiers, activeEffects, tickWorld, EXPEDITION_CLAMP } from './world';
 import type { GameState } from './save';
 
-export const EXPEDITION_SHAPE = 1;
+export const EXPEDITION_SHAPE = 2;
 
 const GAP: Record<ExpTier, number> = { early: 3, mid: 4, late: 5 };
 
@@ -106,6 +107,7 @@ export interface ExpeditionState {
   dayBody: string;
   party: PartyMember[];
   waveIndex: number;
+  backupPending: boolean;
   monsters: (MonsterRuntime | null)[];
   mods: ExpModifier[];
   aura: ExpModifier | null;
@@ -150,13 +152,60 @@ function roomRuntime(dungeon: Dungeon): (MonsterRuntime | null)[] {
       out.push(null);
       continue;
     }
-    out.push({ id: built.slot.id, units: [{ hp: null, status: [], dead: false }] });
+    const count = Math.max(1, monsterDef(built.slot.id).count);
+    const units: MonsterUnit[] = [];
+    for (let i = 0; i < count; i++) units.push({ hp: null, status: [], dead: false });
+    out.push({ id: built.slot.id, units });
   }
   return out;
 }
 
 function makeMember(record: HeroRecord, world: WorldModifiers, wave: number): PartyMember {
   return { hero: buildHero(record, world), record, killedByTag: null, wave, alive: true, fled: false };
+}
+
+export const WAVE_SIZE = 3;
+
+function rollWave(
+  pool: string[],
+  level: number,
+  uidBase: string,
+  wave: number,
+  world: WorldModifiers,
+  rng: Rng,
+  lead?: HeroRecord
+): PartyMember[] {
+  const from = pool.length > 0 ? pool : HEROES.map((h) => h.id);
+  const out: PartyMember[] = [];
+  const taken: string[] = [];
+  if (lead) {
+    out.push(makeMember({ ...lead, level: Math.max(lead.level, level) }, world, wave));
+    taken.push(lead.defId);
+  }
+  while (out.length < WAVE_SIZE) {
+    const fresh = from.filter((id) => !taken.includes(id));
+    const draw = fresh.length > 0 ? fresh : from;
+    const defId = draw[Math.floor(rng() * draw.length) % draw.length];
+    taken.push(defId);
+    const def = heroDef(defId);
+    out.push(
+      makeMember(
+        {
+          uid: `${uidBase}w${wave}m${out.length}`,
+          defId,
+          name: makeName(defId, rng).name,
+          title: def.role,
+          level,
+          raids: 0,
+          deaths: 0,
+          scars: []
+        },
+        world,
+        wave
+      )
+    );
+  }
+  return out;
 }
 
 export function beginExpedition(state: GameState, record: HeroRecord, rng: Rng): ExpeditionState {
@@ -170,10 +219,12 @@ export function beginExpedition(state: GameState, record: HeroRecord, rng: Rng):
   const dungeon: Dungeon = { ...toDungeon(state), lordLevel: Math.max(state.lordLevel, stage.lordLevel) };
   const level = Math.max(record.level, stage.heroLevel);
   const world = composeModifiers(activeEffects(state.world), EXPEDITION_CLAMP);
+  const seed = Math.floor(rng() * 0xffffffff) >>> 0;
+  const seedBase = 'exp' + seed.toString(36);
 
   return {
     shape: EXPEDITION_SHAPE,
-    seed: Math.floor(rng() * 0xffffffff) >>> 0,
+    seed,
     setup: {
       tier,
       gap,
@@ -191,9 +242,10 @@ export function beginExpedition(state: GameState, record: HeroRecord, rng: Rng):
     status: 'active',
     pending: null,
     dayTitle: 'The Road Begins',
-    dayBody: `${record.name} sets out for your gate. ${totalDays} days of road lie between.`,
-    party: [makeMember({ ...record, level }, world, 1)],
+    dayBody: `A party of ${WAVE_SIZE} sets out for your gate, ${record.name} at the front. ${totalDays} days of road lie between.`,
+    party: rollWave(stage.heroPool, level, seedBase, 1, world, rng, record),
     waveIndex: 1,
+    backupPending: false,
     monsters: roomRuntime(dungeon),
     mods: [],
     aura: null,
@@ -312,6 +364,11 @@ function livingMembers(exp: ExpeditionState): PartyMember[] {
 
 export function actingMember(exp: ExpeditionState): PartyMember | null {
   return livingMembers(exp)[0] || null;
+}
+
+export function activeParty(exp: ExpeditionState): PartyMember[] {
+  const wave = Math.max(...exp.party.map((m) => m.wave));
+  return livingMembers(exp).filter((m) => m.wave === wave);
 }
 
 export function eligibleEvents(exp: ExpeditionState): DayEvent[] {
@@ -471,23 +528,22 @@ function advanceAll(exp: ExpeditionState, out: RaidEvent[]): void {
   });
 }
 
-function callBackup(exp: ExpeditionState, world: WorldModifiers, rng: Rng): void {
+function callBackup(exp: ExpeditionState, world: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
   exp.totals.wavesLost += 1;
+  out.push({ t: 'waveWipe', wave: exp.waveIndex });
   exp.waveIndex += 1;
-  const pool = exp.setup.pool.length > 0 ? exp.setup.pool : HEROES.map((h) => h.id);
-  const defId = pool[Math.floor(rng() * pool.length) % pool.length];
-  const stage = stageDef(exp.setup.stage);
-  const record: HeroRecord = {
-    uid: `exp${exp.seed.toString(36)}w${exp.waveIndex}`,
-    defId,
-    name: heroDef(defId).name,
-    title: 'the Replacement',
-    level: stage.heroLevel,
-    raids: 0,
-    deaths: 0,
-    scars: []
-  };
-  exp.party = [...exp.party, makeMember(record, world, exp.waveIndex)];
+  exp.party = [
+    ...exp.party,
+    ...rollWave(
+      exp.setup.pool,
+      stageDef(exp.setup.stage).heroLevel,
+      'exp' + exp.seed.toString(36),
+      exp.waveIndex,
+      world,
+      rng
+    )
+  ];
+  exp.backupPending = true;
 }
 
 function finish(exp: ExpeditionState, outcome: Outcome): void {
@@ -521,14 +577,20 @@ export function advanceDay(exp: ExpeditionState, world: WorldState): DayOutcome 
   }
 
   if (!isCheckpointDay(next)) {
-    for (const m of livingMembers(next)) {
+    const wave = activeParty(next);
+    let lastTag: Tag | null = null;
+    for (const m of wave) {
       const kill = tickStatusDamage(m.hero, out);
       if (m.hero.hp <= 0) {
         m.alive = false;
         m.killedByTag = kill || m.killedByTag;
+        lastTag = m.killedByTag;
         next.log.push({ day: next.day, kind: 'death', text: `${m.hero.name} dies on the road.` });
-        callBackup(next, mods, dayRng(next, 21));
       }
+    }
+    if (wave.length > 0 && activeParty(next).length === 0) {
+      if (lastTag) next.knowledge[lastTag] = (next.knowledge[lastTag] || 0) + 1;
+      callBackup(next, mods, dayRng(next, 21), out);
     }
   }
 
@@ -547,6 +609,16 @@ export function advanceDay(exp: ExpeditionState, world: WorldState): DayOutcome 
 }
 
 function resolveDayEvent(exp: ExpeditionState, out: RaidEvent[]): void {
+  if (exp.backupPending) {
+    exp.backupPending = false;
+    const wave = activeParty(exp);
+    const names = wave.map((m) => m.hero.name).join(', ');
+    exp.dayTitle = 'Calling Backup';
+    exp.dayBody = `Word of the last wave reaches the muster. A fresh party forms up: ${names}.`;
+    exp.log.push({ day: exp.day, kind: 'backup', text: `Wave ${exp.waveIndex} sets out.` });
+    return;
+  }
+
   const rng = dayRng(exp, 1);
   const e = pickEvent(exp, rng);
   if (!e) {
@@ -601,80 +673,84 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
   const rng = dayRng(exp, 2);
   const index = exp.checkpoint;
   const isThrone = index >= EDITABLE_ROOMS;
-  const member = livingMembers(exp)[0];
+  const wave = activeParty(exp);
 
-  if (!member) {
+  if (wave.length === 0) {
     exp.dayTitle = 'No One Comes';
     exp.dayBody = 'Your halls stay silent. Nobody arrives to test them today.';
     exp.log.push({ day: exp.day, kind: 'empty-checkpoint', text: 'No party reached the gate.' });
     return;
   }
 
-  const def = heroDef(member.hero.defId);
-  const party: CombatMember[] = [{ hero: member.hero, def }];
+  const label = isThrone ? 'the Throne Room' : `Room ${index + 1}`;
+  const wantsOut = wave.filter((m) => wantsToFlee(m.hero, heroDef(m.hero.defId), rng));
 
-  if (wantsToFlee(member.hero, def, rng)) {
-    out.push({ t: 'decision', intent: 'flee', note: fleeNote(member.hero, def) });
+  if (wantsOut.length * 2 > wave.length) {
+    out.push({ t: 'decision', intent: 'flee', note: fleeNote(wantsOut[0].hero, heroDef(wantsOut[0].hero.defId)) });
     out.push({ t: 'heroFlee', fromRoom: index });
     out.push({ t: 'reaction', kind: 'panic' });
-    member.fled = true;
-    exp.totals.goldStolen += member.hero.looted;
+    for (const m of wave) {
+      m.fled = true;
+      exp.totals.goldStolen += m.hero.looted;
+    }
     exp.dayTitle = 'They Turn Back';
-    exp.dayBody = `${member.hero.name} breaks off and runs for the entrance.`;
-    exp.log.push({ day: exp.day, kind: 'flee', text: `${member.hero.name} flees the dungeon.` });
+    exp.dayBody = `The party breaks off short of ${label} and runs for the entrance.`;
+    exp.log.push({ day: exp.day, kind: 'flee', text: `Wave ${exp.waveIndex} withdrew from ${label}.` });
     const reward = checkpointReward(exp.setup.tierScale, mods, true);
     exp.totals.gold += reward.gold;
     exp.totals.souls += reward.souls;
-    callBackup(exp, mods, dayRng(exp, 3));
+    callBackup(exp, mods, dayRng(exp, 3), out);
     return;
   }
 
   const built = isThrone
     ? { slot: { kind: 'empty' as const }, level: 1 }
     : exp.setup.dungeon.rooms[index] || { slot: { kind: 'empty' as const }, level: 1 };
+  const roomIndex = isThrone ? EDITABLE_ROOMS : index;
 
   const res = runCheckpoint({
-    roomIndex: isThrone ? EDITABLE_ROOMS : index,
+    roomIndex,
     built,
     isThrone,
-    party,
-    runtime: exp.monsters[isThrone ? EDITABLE_ROOMS : index],
+    party: wave.map((m) => ({ hero: m.hero, def: heroDef(m.hero.defId) })),
+    runtime: exp.monsters[roomIndex],
     world: mods,
     rng,
     lord: isThrone ? { level: exp.setup.dungeon.lordLevel, weaponId: exp.setup.dungeon.lordWeaponId } : null,
-    killedByTag: member.killedByTag
+    killedByTag: null
   });
 
   for (const e of res.events) out.push(e);
-  clearCombatScoped(member.hero, out);
-  member.killedByTag = res.killedByTag;
-  exp.monsters = exp.monsters.map((rt, i) => (i === (isThrone ? EDITABLE_ROOMS : index) ? res.runtime : rt));
+  for (const m of wave) {
+    clearCombatScoped(m.hero, out);
+    if (m.hero.hp <= 0) m.alive = false;
+  }
+  exp.monsters = exp.monsters.map((rt, i) => (i === roomIndex ? res.runtime : rt));
 
   const reward = checkpointReward(exp.setup.tierScale, mods, res.wiped);
   exp.totals.gold += reward.gold;
   exp.totals.souls += reward.souls;
 
+  const fallen = wave.filter((m) => !m.alive).length;
+
   if (res.wiped) {
-    out.push({ t: 'reaction', kind: 'dead' });
-    out.push({ t: 'heroDown' });
-    member.alive = false;
     if (res.killedByTag) exp.knowledge[res.killedByTag] = (exp.knowledge[res.killedByTag] || 0) + 1;
-    exp.dayTitle = isThrone ? 'Nekrokos Holds' : `Room ${index + 1} Holds`;
-    exp.dayBody = `${member.hero.name} dies here. Word goes back for another.`;
-    exp.log.push({ day: exp.day, kind: 'wipe', text: `${member.hero.name} falls at checkpoint ${index + 1}.` });
+    exp.dayTitle = isThrone ? 'Nekrokos Holds' : `${label} Holds`;
+    exp.dayBody = `Wave ${exp.waveIndex} dies in ${label}. Word goes back for another.`;
+    exp.log.push({ day: exp.day, kind: 'wipe', text: `Wave ${exp.waveIndex} wiped at ${label}.` });
     if (isThrone) {
       finish(exp, 'dungeonWin');
       return;
     }
-    callBackup(exp, mods, dayRng(exp, 4));
+    callBackup(exp, mods, dayRng(exp, 4), out);
     return;
   }
 
   if (res.stalled) {
-    out.push({ t: 'stalled', room: isThrone ? EDITABLE_ROOMS : index });
+    out.push({ t: 'stalled', room: roomIndex });
     exp.dayTitle = 'A Long Standoff';
-    exp.dayBody = `Neither side breaks. ${member.hero.name} pulls back to try again.`;
-    exp.log.push({ day: exp.day, kind: 'stall', text: `Checkpoint ${index + 1} ends in a standoff.` });
+    exp.dayBody = `Neither side breaks in ${label}. The party pulls back to try again.`;
+    exp.log.push({ day: exp.day, kind: 'stall', text: `${label} ended in a standoff.` });
     return;
   }
 
@@ -683,14 +759,21 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
 
   if (isThrone) {
     exp.dayTitle = 'The Throne Falls';
-    exp.dayBody = `${member.hero.name} cuts down Nekrokos and walks out with your gold.`;
+    exp.dayBody = 'Nekrokos goes down. What is left of the party walks out with your gold.';
     exp.log.push({ day: exp.day, kind: 'breach', text: 'The Throne Room was breached.' });
-    exp.totals.goldStolen += member.hero.looted;
+    for (const m of wave) if (m.alive) exp.totals.goldStolen += m.hero.looted;
     finish(exp, 'heroVictory');
     return;
   }
 
-  exp.dayTitle = `Room ${index + 1} Falls`;
-  exp.dayBody = `${member.hero.name} clears the room and moves deeper.`;
-  exp.log.push({ day: exp.day, kind: 'cleared', text: `Checkpoint ${index + 1} cleared.` });
+  exp.dayTitle = `${label} Falls`;
+  exp.dayBody =
+    fallen > 0
+      ? `The party clears ${label}, ${fallen} of them left behind, and moves deeper.`
+      : `The party clears ${label} intact and moves deeper.`;
+  exp.log.push({
+    day: exp.day,
+    kind: 'cleared',
+    text: fallen > 0 ? `${label} cleared; ${fallen} dead.` : `${label} cleared.`
+  });
 }

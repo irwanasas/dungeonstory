@@ -53,7 +53,8 @@ export function simulateRaid(dungeon: Dungeon, record: HeroRecord, tier: number,
       world,
       rng,
       lord: null,
-      killedByTag
+      killedByTag,
+      foeCap: 1
     });
     events.push(...res.events);
     killedByTag = res.killedByTag;

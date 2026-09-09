@@ -111,6 +111,7 @@ export interface MonsterDef {
   evasion: number;
   splitAt: number;
   ranged: boolean;
+  count: number;
   applies: { kind: StatusKind; days: number } | null;
   desc: string;
   goldCost: number;
@@ -236,10 +237,12 @@ export type RaidEvent =
   | { t: 'doorOpen'; room: number }
   | { t: 'decision'; intent: Intent; note: string }
   | { t: 'trapFire'; trapId: string; disarmed: boolean }
-  | { t: 'monsterAppear'; monsterId: string; hp: number; maxHp: number }
-  | { t: 'monsterSplit'; monsterId: string; hp: number; maxHp: number }
-  | { t: 'heroAttack'; dmg: number; crit: boolean; miss: boolean; targetHp: number; targetMaxHp: number }
-  | { t: 'enemyWindup'; ranged: boolean }
+  | { t: 'actor'; index: number; name: string; defId: string }
+  | { t: 'waveWipe'; wave: number }
+  | { t: 'monsterAppear'; monsterId: string; hp: number; maxHp: number; slot?: number }
+  | { t: 'monsterSplit'; monsterId: string; hp: number; maxHp: number; slot?: number }
+  | { t: 'heroAttack'; dmg: number; crit: boolean; miss: boolean; targetHp: number; targetMaxHp: number; slot?: number }
+  | { t: 'enemyWindup'; ranged: boolean; slot?: number }
   | { t: 'ability'; id: string; name: string }
   | { t: 'interaction'; id: string; name: string; hint: string }
   | { t: 'damage'; source: 'trap' | 'monster' | 'lord'; tag: Tag; dmg: number; evaded: boolean; heroHp: number; heroMaxHp: number }
@@ -247,7 +250,7 @@ export type RaidEvent =
   | { t: 'statusOn'; kind: StatusKind }
   | { t: 'statusOff'; kind: StatusKind }
   | { t: 'statusTick'; kind: StatusKind; dmg: number; heroHp: number }
-  | { t: 'monsterDown'; monsterId: string }
+  | { t: 'monsterDown'; monsterId: string; slot?: number }
   | { t: 'roomClear'; room: number }
   | { t: 'treasureTaken'; treasureId: string; gold: number }
   | { t: 'lordAppear'; level: number; hp: number; maxHp: number }
