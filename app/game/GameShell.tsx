@@ -1,47 +1,56 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
+import type { RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
 import { LORD } from '../../game/content/monsters';
-import { legacyFrom, trophiesFrom } from '../../game/content/milestones';
-import { challengeSouls, challengesFrom } from '../../game/content/challenges';
-import { dungeonPower, toDungeon, unlockSoulCost } from '../../game/state/economy';
-import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
-import { FAME_MAX, canPlace, unlockedFor, type GameState } from '../../game/state/save';
-import { absorbResult, returningNote } from '../../game/state/roster';
-import { simulateRaid } from '../../game/sim/raid';
+import { dungeonPower, unlockSoulCost } from '../../game/state/economy';
+import { effectCount } from '../../game/state/world';
+import { canPlace, unlockedFor } from '../../game/state/save';
+import { returningNote } from '../../game/state/roster';
+import {
+  actingMember,
+  advanceDay,
+  beginExpedition,
+  commitChoice,
+  endExpedition,
+  isCheckpointDay,
+  type ExpeditionState
+} from '../../game/state/expedition';
+import { snapshot } from '../../game/sim/hero';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
 import { BuildSheet } from './panels/BuildSheet';
 import { CodexSheet } from './panels/CodexSheet';
+import { DayPanel } from './panels/DayPanel';
+import { ExpeditionSheet } from './panels/ExpeditionSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradeSheet } from './panels/UpgradeSheet';
 import { WorldSheet } from './panels/WorldSheet';
-import { Coach, HeroTeaser, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
+import { Coach, HeroTeaser, OfflinePanel, TUTORIAL } from './overlays';
 import { ICON, artVars, contentArt, heroArt } from './art';
 import { CELL, useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-const MIN_WORLD_STAGE = 3;
-
-type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | null;
+type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | 'report' | null;
 
 export default function GameShell() {
   const { state, raider, offline, setOffline, update, rollRaider, resetState } = useGameState();
   const [selected, setSelected] = useState(0);
   const [sheet, setSheet] = useState<SheetKind>(null);
-  const [result, setResult] = useState<RaidResult | null>(null);
-  const [resultOpen, setResultOpen] = useState(false);
-  const [stageCleared, setStageCleared] = useState(false);
   const [justPlaced, setJustPlaced] = useState(-1);
   const [news, setNews] = useState<WorldEvent | null>(null);
+  const [report, setReport] = useState<ExpeditionState | null>(null);
+  const [stepping, setStepping] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
-  const busy = view.raiding;
+  const exp = state ? state.expedition : null;
+  const onExpedition = exp !== null && exp.status === 'active';
+  const busy = view.raiding || stepping;
+  const locked = busy || onExpedition;
 
 
   const advanceTutorial = useCallback(
@@ -126,13 +135,6 @@ export default function GameShell() {
     sfx('lord');
   }
 
-  function setMode(mode: 'stage' | 'arcade') {
-    if (busy || !state) return;
-    update((s) => ({ ...s, mode }));
-    rollRaider({ ...state, mode });
-    sfx('tap');
-  }
-
   function openSheet(kind: SheetKind) {
     if (busy) return;
     setSheet(kind);
@@ -141,96 +143,54 @@ export default function GameShell() {
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
   }
 
-  async function startRaid() {
-    if (busy || !state || !raider) return;
+  function startExpedition() {
+    if (locked || !state || !raider) return;
     startAmbient();
     sfx('tap');
     if (state.tutorial === 2) advanceTutorial(2);
-
-    const heroLevel = state.mode === 'arcade' ? 1 + Math.floor((state.wave - 1) / 2) : stage.heroLevel;
-    const record: HeroRecord = { ...raider, level: Math.max(raider.level, heroLevel) };
-    const lordLevel = state.mode === 'arcade' ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
-    const dungeon = { ...toDungeon(state), lordLevel };
-    const raidResult = simulateRaid(dungeon, record, tier, {
-      world: worldModifiers(state.world)
-    });
-
-    await play(raidResult, heroArt(record.defId));
-
-    const turned = tickWorld(state.world, state.mode === 'arcade' ? MIN_WORLD_STAGE : state.stage, systemRng);
-    const cleared =
-      state.mode === 'stage' && raidResult.outcome === 'dungeonWin' && state.stage > state.maxStageCleared;
-
-    update((s) => {
-      const roster = absorbResult(s.roster, record, raidResult);
-      const hero = roster[0];
-      const earned = [
-        ...trophiesFrom(raidResult.events),
-        ...(s.mode === 'stage' ? challengesFrom(dungeon, s.stage, raidResult) : [])
-      ].filter((id) => !s.unlockedMilestones.includes(id));
-      const fame = legacyFrom(hero, raidResult)
-        .filter((id) => !s.hallOfFame.some((e) => e.uid === hero.uid && e.milestoneId === id))
-        .map((id) => ({
-          uid: hero.uid,
-          heroName: hero.name,
-          title: hero.title,
-          milestoneId: id,
-          achievedAt: Date.now()
-        }));
-
-      const next: GameState = {
-        ...s,
-        world: turned.world,
-        gold: s.gold + raidResult.gold,
-        souls: s.souls + raidResult.souls + challengeSouls(earned),
-        roster,
-        unlockedMilestones: [...s.unlockedMilestones, ...earned],
-        hallOfFame: [...fame, ...s.hallOfFame].slice(0, FAME_MAX),
-        stats: {
-          ...s.stats,
-          raids: s.stats.raids + 1,
-          defeated: s.stats.defeated + (raidResult.outcome === 'dungeonWin' ? 1 : 0),
-          escaped: s.stats.escaped + (raidResult.outcome === 'heroEscape' ? 1 : 0),
-          lost: s.stats.lost + (raidResult.outcome === 'heroVictory' ? 1 : 0),
-          goldEarned: s.stats.goldEarned + raidResult.gold,
-          goldStolen: s.stats.goldStolen + raidResult.goldStolen
-        }
-      };
-      if (s.mode === 'stage') {
-        if (raidResult.outcome === 'dungeonWin') {
-          next.maxStageCleared = Math.max(s.maxStageCleared, s.stage);
-          if (s.stage < STAGE_MAX) next.stage = s.stage + 1;
-          next.unlocked = [...new Set([...unlockedFor(next.stage), ...next.bought])];
-        }
-      } else if (raidResult.outcome === 'dungeonWin') {
-        next.bestWave = Math.max(s.bestWave, s.wave);
-        next.wave = s.wave + 1;
-      } else {
-        next.wave = 1;
-      }
-      return next;
-    });
-
-    setResult(raidResult);
-    setStageCleared(cleared);
-    setNews(turned.fired);
-    setResultOpen(true);
+    update((s) => ({ ...s, expedition: beginExpedition(s, raider, systemRng) }));
   }
 
-  function closeResult() {
-    if (!state) return;
-    setResultOpen(false);
-    sfx('tap');
+  async function nextDay() {
+    if (busy || !state || !exp || exp.pending) return;
+    const battle = isCheckpointDay(exp);
+    const actor = actingMember(exp);
+    const fromRoom = Math.max(-1, exp.checkpoint - 1);
+    setStepping(true);
+    const outcome = advanceDay(exp, state.world);
+    update((s) => ({ ...s, expedition: outcome.exp }));
+    sfx(battle ? 'door' : 'tap');
+
+    if (battle && outcome.events.length > 0 && actor) {
+      await play(outcome.events, snapshot(actor.hero), heroArt(actor.hero.defId), fromRoom);
+    }
+    setStepping(false);
+  }
+
+  function choose(optionId: string) {
+    if (busy || !state || !exp) return;
+    const outcome = commitChoice(exp, optionId, state.world);
+    update((s) => ({ ...s, expedition: outcome.exp }));
+    sfx('place');
+  }
+
+  function finishExpedition() {
+    if (busy || !state || !exp || exp.status !== 'complete') return;
+    const done = endExpedition(state, exp, systemRng);
+    update(() => done.state);
+    setReport(exp);
+    setNews(done.fired);
+    setSheet('report');
+    sfx(exp.outcome === 'dungeonWin' ? 'win' : exp.outcome === 'heroEscape' ? 'escape' : 'lose');
     if (state.tutorial === 3) advanceTutorial(3);
-    rollRaider(state);
+    rollRaider(done.state);
   }
 
   function resetGame() {
     resetState();
     setSelected(0);
     setSheet(null);
-    setResult(null);
-    setResultOpen(false);
+    setReport(null);
     sfx('lose');
   }
 
@@ -241,7 +201,7 @@ export default function GameShell() {
   }
 
   const veteranNote = returningNote(raider);
-  const coachHidden = busy || sheet !== null || resultOpen || offline !== null;
+  const coachHidden = busy || sheet !== null || offline !== null;
 
   return (
     <div className="app" style={artVars}>
@@ -249,9 +209,7 @@ export default function GameShell() {
         <div className="hud-left">
           <div className="hud-title">OWN A DUNGEON</div>
           <div className="hud-sub">
-            {state.mode === 'stage'
-              ? `Stage ${state.stage}/${STAGE_MAX} · ${stage.title}`
-              : `Wave ${state.wave} · Best ${state.bestWave}`}
+            {`Stage ${state.stage}/${STAGE_MAX} · ${stage.title}`}
             {` · Power ${dungeonPower(state)}`}
           </div>
         </div>
@@ -273,12 +231,6 @@ export default function GameShell() {
           {(state.world.unread > 0 || effectCount(state.world) > 0) && (
             <span className={'tab-dot' + (state.world.unread === 0 ? ' live' : '')} />
           )}
-        </button>
-        <button className={'tab btn' + (state.mode === 'stage' ? ' on' : '')} onClick={() => setMode('stage')} disabled={busy}>
-          Stage
-        </button>
-        <button className={'tab btn' + (state.mode === 'arcade' ? ' on' : '')} onClick={() => setMode('arcade')} disabled={busy}>
-          Arcade
         </button>
         <button className="tab tab-icon btn" onClick={() => openSheet('codex')} disabled={busy} aria-label="Codex">
           <img src={ICON.codex} alt="" />
@@ -302,6 +254,7 @@ export default function GameShell() {
         onScrollRoom={setSelected}
         speed={speed}
         onSpeed={() => setSpeed(speed >= 8 ? 1 : speed * 2)}
+        quiet={onExpedition && !view.raiding}
       />
 
       <div className="strip">
@@ -334,20 +287,24 @@ export default function GameShell() {
         </button>
       </div>
 
-      <HeroTeaser
-        defId={raider.defId}
-        name={raider.name}
-        title={raider.title}
-        note={veteranNote}
-        raiding={busy}
-        status={
-          view.litRoom < 0
-            ? 'At the entrance.'
-            : view.litRoom >= EDITABLE_ROOMS
-              ? `Throne Room — facing ${LORD.short}.`
-              : `Room ${view.litRoom + 1} of ${EDITABLE_ROOMS}.`
-        }
-      />
+      {exp ? (
+        <DayPanel exp={exp} busy={busy} onNextDay={nextDay} onChoose={choose} onFinish={finishExpedition} />
+      ) : (
+        <HeroTeaser
+          defId={raider.defId}
+          name={raider.name}
+          title={raider.title}
+          note={veteranNote}
+          raiding={busy}
+          status={
+            view.litRoom < 0
+              ? 'At the entrance.'
+              : view.litRoom >= EDITABLE_ROOMS
+                ? `Throne Room — facing ${LORD.short}.`
+                : `Room ${view.litRoom + 1} of ${EDITABLE_ROOMS}.`
+          }
+        />
+      )}
 
       <div className="bottom">
         <button
@@ -359,16 +316,16 @@ export default function GameShell() {
             }
             openSheet('build');
           }}
-          disabled={busy}
+          disabled={locked}
           aria-label="Build"
         >
           <img src={ICON.build} alt="" />
         </button>
-        <button className="raid btn" onClick={startRaid} disabled={busy}>
+        <button className="raid btn" onClick={startExpedition} disabled={locked}>
           <img src={ICON.raid} alt="" />
-          RAID
+          {onExpedition ? 'ON THE ROAD' : 'EXPEDITION'}
         </button>
-        <button className="side btn" onClick={() => openSheet('upgrade')} disabled={busy} aria-label="Upgrade">
+        <button className="side btn" onClick={() => openSheet('upgrade')} disabled={locked} aria-label="Upgrade">
           <img src={ICON.upgrade} alt="" />
         </button>
       </div>
@@ -394,14 +351,7 @@ export default function GameShell() {
       <WorldSheet open={sheet === 'world'} state={state} onClose={closeSheet} />
       <SettingsSheet open={sheet === 'settings'} state={state} onClose={closeSheet} onReset={resetGame} />
 
-      <ResultPanel
-        open={resultOpen}
-        result={result}
-        stageCleared={stageCleared}
-        nextBrief={stage.teaches}
-        news={news}
-        onClose={closeResult}
-      />
+      <ExpeditionSheet open={sheet === 'report'} exp={report} onClose={closeSheet} />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />
     </div>

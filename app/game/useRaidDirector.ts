@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import type { RaidEvent, RaidResult, StatusKind, Tag } from '../../game/types';
+import type { HeroSnapshot, RaidEvent, StatusKind, Tag } from '../../game/types';
 import { statusDef } from '../../game/content/statuses';
 import { LORD } from '../../game/content/monsters';
 import { monsterArt } from './art';
@@ -123,24 +123,24 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
   }, []);
 
   const play = useCallback(
-    async (result: RaidResult, heroImg: string) => {
+    async (events: RaidEvent[], hero: HeroSnapshot, heroImg: string, fromRoom = -1) => {
       const el = scrollRef.current;
       const camera = (roomIndex: number, ms: number) =>
         el ? tween(el, (roomIndex + 1) * CELL, ms) : Promise.resolve();
       const xOf = (roomIndex: number, frac: number) => (roomIndex + 1) * CELL + CELL * frac;
 
-      let room = 0;
-      let heroHp = result.hero.hp;
-      let heroMax = result.hero.maxHp;
+      let room = fromRoom;
+      let heroHp = hero.hp;
+      let heroMax = hero.maxHp;
       let foeName = '';
       let foeHp = 0;
       let foeMax = 1;
       let foeX = 0;
       let statuses: StatusKind[] = [];
-      let heroX = xOf(-1, 0.34);
+      let heroX = xOf(fromRoom, 0.34);
       let lastRanged = false;
 
-      const setHeroBar = () => patch({ heroBar: { name: result.hero.name, hp: heroHp, maxHp: heroMax, foe: false } });
+      const setHeroBar = () => patch({ heroBar: { name: hero.name, hp: heroHp, maxHp: heroMax, foe: false } });
       const setFoeBar = () => patch({ foeBar: { name: foeName, hp: foeHp, maxHp: foeMax, foe: true } });
 
       setView({
@@ -151,12 +151,12 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
         heroX,
         heroMs: 0,
         heroCls: '',
-        heroBar: { name: result.hero.name, hp: heroHp, maxHp: heroMax, foe: false },
+        heroBar: { name: hero.name, hp: heroHp, maxHp: heroMax, foe: false },
         barsOn: true,
-        litRoom: -1,
+        litRoom: fromRoom,
         doorOpen: -1
       });
-      await camera(-1, 0);
+      await camera(fromRoom, 0);
       sfx('door');
       await wait(750);
 
@@ -355,8 +355,13 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
             patch({ heroShown: false, barsOn: false });
             break;
 
+          case 'stalled':
+            patch({ callout: { key: ++keyId.current, text: 'STANDOFF', danger: false } });
+            await wait(700);
+            break;
+
           case 'heroFlee': {
-            patch({ intent: `${result.hero.name} runs for the entrance!` });
+            patch({ intent: `${hero.name} runs for the entrance!` });
             heroX = xOf(-1, 0.24);
             patch({ heroX, heroMs: 1300, heroCls: 'walk' });
             sfx('escape');
@@ -373,7 +378,7 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
         }
       };
 
-      for (const e of result.events) {
+      for (const e of events) {
         await step(e);
       }
 

@@ -26,19 +26,25 @@ export function normalizeWorld(input: Partial<WorldState> | undefined): WorldSta
   };
 }
 
-function clamp(v: number): number {
-  return Math.max(CLAMP_LOW, Math.min(CLAMP_HIGH, v));
-}
+export const WORLD_CLAMP: [number, number] = [CLAMP_LOW, CLAMP_HIGH];
+export const EXPEDITION_CLAMP: [number, number] = [0.7, 1.45];
 
 function mul<K extends string>(map: Partial<Record<K, number>>, key: K, value: number): void {
   map[key] = (map[key] || 1) * value;
 }
 
-function activeEvents(world: WorldState): WorldEvent[] {
+function activeEvents_(world: WorldState): WorldEvent[] {
   return world.active.map((a) => worldEvent(a.id)).filter((e): e is WorldEvent => e !== null);
 }
 
-export function worldModifiers(world: WorldState): WorldModifiers {
+export function activeEffects(world: WorldState): WorldEffect[] {
+  return activeEvents_(world)
+    .map((e) => e.effect)
+    .filter((f): f is WorldEffect => f !== undefined);
+}
+
+export function composeModifiers(effects: WorldEffect[], range: [number, number] = WORLD_CLAMP): WorldModifiers {
+  const clamp = (v: number) => Math.max(range[0], Math.min(range[1], v));
   const m: WorldModifiers = {
     heroAtk: 1,
     heroHp: 1,
@@ -53,9 +59,7 @@ export function worldModifiers(world: WorldState): WorldModifiers {
     heroBias: []
   };
 
-  for (const e of activeEvents(world)) {
-    const f = e.effect;
-    if (!f) continue;
+  for (const f of effects) {
     if (f.heroAtk) m.heroAtk *= f.heroAtk;
     if (f.heroHp) m.heroHp *= f.heroHp;
     if (f.monsterAtk) m.monsterAtk *= f.monsterAtk;
@@ -83,12 +87,16 @@ export function worldModifiers(world: WorldState): WorldModifiers {
   return m;
 }
 
+export function worldModifiers(world: WorldState): WorldModifiers {
+  return composeModifiers(activeEffects(world));
+}
+
 export function noWorld(): WorldModifiers {
   return worldModifiers(defaultWorld());
 }
 
 export function effectCount(world: WorldState): number {
-  return activeEvents(world).filter((e) => e.effect).length;
+  return activeEffects(world).length;
 }
 
 function eligible(event: WorldEvent, active: ActiveEvent[], history: string[], stage: number, effects: number): boolean {

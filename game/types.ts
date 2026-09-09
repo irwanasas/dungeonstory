@@ -253,6 +253,7 @@ export type RaidEvent =
   | { t: 'lordAppear'; level: number; hp: number; maxHp: number }
   | { t: 'reaction'; kind: ReactionKind }
   | { t: 'heroDown' }
+  | { t: 'stalled'; room: number }
   | { t: 'heroFlee'; fromRoom: number }
   | { t: 'raidEnd'; outcome: Outcome; gold: number; souls: number; goldStolen: number };
 
@@ -332,5 +333,34 @@ export interface WorldModifiers {
   heroBias: string[];
 }
 
+export type DayEventCategory = 'blessed' | 'cursed' | 'neutral' | 'omen';
+
+export type DayEventKind = 'narrative' | 'choice' | 'altar' | 'ecosystem';
+
+export interface DayEventOption {
+  id: string;
+  label: string;
+  hint: string;
+  effect?: WorldEffect;
+  days?: number;
+  applyStatus?: { kind: StatusKind; days: number; to: 'party' | 'monsters' | 'both'; except?: string[] };
+  healPct?: number;
+}
+
+export interface DayEvent {
+  id: string;
+  kind: DayEventKind;
+  category: DayEventCategory;
+  title: string;
+  body: string;
+  weight: number;
+  tiers: ExpTier[];
+  tags?: Tag[];
+  requiresStatus?: StatusKind[];
+  options: DayEventOption[];
+}
+
 export const EDITABLE_ROOMS = 5;
 export const MAX_PER_ID = 2;
+export const CHECKPOINTS = 6;
+export const FAME_MAX = 20;

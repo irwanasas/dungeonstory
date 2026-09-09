@@ -27,6 +27,7 @@ interface Props {
   onScrollRoom: (index: number) => void;
   speed: number;
   onSpeed: () => void;
+  quiet?: boolean;
 }
 
 export default function DungeonView({
@@ -39,7 +40,8 @@ export default function DungeonView({
   onSelect,
   onScrollRoom,
   speed,
-  onSpeed
+  onSpeed,
+  quiet
 }: Props) {
   const worldRef = useRef<HTMLDivElement>(null);
   const [pad, setPad] = useState(0);
@@ -74,7 +76,7 @@ export default function DungeonView({
   const cells = [-1, ...rooms.map((_, i) => i), EDITABLE_ROOMS];
 
   return (
-    <div className="stage">
+    <div className={'stage' + (quiet ? ' quiet' : '')}>
       <div className={'scroll' + (view.raiding ? ' locked' : '')} ref={scrollRef}>
         <div className="world" ref={worldRef} style={{ ['--pad' as string]: `${pad}px` }}>
           <div className="pad" />

@@ -33,6 +33,13 @@ export function raidRewards(
   return { gold: Math.round(5 * scale * g), souls: 0 };
 }
 
+export function checkpointReward(tier: number, world: WorldModifiers, held: boolean): { gold: number; souls: number } {
+  const scale = 1 + (tier - 1) * 0.11;
+  const gold = Math.round((held ? 14 : 6) * scale * world.gold);
+  const souls = held ? Math.round((1 + Math.floor(tier / 6)) * world.souls) : 0;
+  return { gold, souls };
+}
+
 export function dungeonPower(state: GameState): number {
   return (
     state.rooms.reduce((sum, slot) => (slot.kind === 'empty' ? sum : sum + (state.levels[slot.id] || 1)), 0) +

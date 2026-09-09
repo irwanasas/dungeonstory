@@ -25,6 +25,7 @@ export interface OfflineReport {
 }
 
 export function offlineReport(state: GameState, now: number): OfflineReport | null {
+  if (state.expedition && state.expedition.status === 'active') return null;
   const elapsed = Math.max(0, now - state.lastSeenAt);
   const capped = Math.min(elapsed, OFFLINE_CAP_MS);
   const raids = Math.min(OFFLINE_MAX_RAIDS, Math.floor(capped / OFFLINE_RAID_MS));

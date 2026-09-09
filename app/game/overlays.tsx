@@ -7,7 +7,7 @@ import { trapDef } from '../../game/content/traps';
 import type { OfflineReport } from '../../game/sim/offline';
 import { ICON, heroArt } from './art';
 
-const OUTCOME_COPY: Record<Outcome, { title: string; desc: string; cls: string }> = {
+export const OUTCOME_COPY: Record<Outcome, { title: string; desc: string; cls: string }> = {
   dungeonWin: {
     title: 'DUNGEON HELD',
     desc: 'They never reached the throne. Your dungeon ate them.',
@@ -173,7 +173,7 @@ export interface CoachStep {
 export const TUTORIAL: CoachStep[] = [
   { text: 'This is your dungeon. Six rooms. Swipe across them, then tap a room to put something inside.', pos: 'mid' },
   { text: 'Good. Fill another room or two — the order they meet things is the whole game.', pos: 'mid' },
-  { text: 'A hero is on the way. Send them in and watch what your rooms do.', pos: 'low' },
+  { text: 'An expedition is forming. Start it, then walk the days with them until they reach your gate.', pos: 'low' },
   { text: 'That was your dungeon working. Take what it earned.', pos: 'mid' },
   { text: 'Gold makes your traps and monsters hurt more. Spend it.', pos: 'low' },
   { text: 'Now change the dungeon and run it again. The same heroes come back smarter.', pos: 'low' }

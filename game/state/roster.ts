@@ -23,7 +23,11 @@ export function pickRaider(roster: HeroRecord[], pool: string[], level: number, 
   return newHero(defId, level, rng);
 }
 
-export function absorbResult(roster: HeroRecord[], raider: HeroRecord, result: RaidResult): HeroRecord[] {
+export function absorbResult(
+  roster: HeroRecord[],
+  raider: HeroRecord,
+  result: Pick<RaidResult, 'survived' | 'killedByTag'>
+): HeroRecord[] {
   const next: HeroRecord = {
     ...raider,
     raids: raider.raids + 1,
