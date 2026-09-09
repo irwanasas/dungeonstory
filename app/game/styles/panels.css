@@ -603,3 +603,47 @@ a.row.link {
   height: 30px;
   margin-top: 2px;
 }
+
+.idle {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 20px;
+}
+
+.idle-face {
+  width: 72px;
+  height: 72px;
+}
+
+.idle-title {
+  font-family: var(--pixel);
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  color: var(--gold-lit);
+}
+
+.idle-family {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.idle-best {
+  font-family: var(--pixel);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+  margin-top: 6px;
+}
+
+.idle .modal-btn {
+  margin-top: 12px;
+  max-width: 200px;
+}

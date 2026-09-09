@@ -370,3 +370,4 @@ export const EDITABLE_ROOMS = 5;
 export const MAX_PER_ID = 2;
 export const CHECKPOINTS = 6;
 export const FAME_MAX = 20;
+export const CAMPAIGN_MAX = 10;

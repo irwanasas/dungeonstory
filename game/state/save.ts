@@ -1,5 +1,5 @@
 import type { HeroRecord, RoomSlot, WorldState } from '../types';
-import { EDITABLE_ROOMS, FAME_MAX, MAX_PER_ID } from '../types';
+import { CAMPAIGN_MAX, EDITABLE_ROOMS, FAME_MAX, MAX_PER_ID } from '../types';
 import type { CampaignState } from './campaign';
 import { normalizeCampaign } from './campaign';
 import { STAGES } from '../content/stages';
@@ -49,6 +49,8 @@ export interface GameState {
   equippedLordWeapon: string;
   unlockedLordWeapons: string[];
   campaign: CampaignState | null;
+  campaignNumber: number;
+  bestDaysByCampaign: Record<number, number>;
 }
 
 const KEY = 'own_a_dungeon_v1';
@@ -131,7 +133,9 @@ export function defaultState(): GameState {
     hallOfFame: [],
     equippedLordWeapon: DEFAULT_LORD_WEAPON,
     unlockedLordWeapons: [DEFAULT_LORD_WEAPON],
-    campaign: null
+    campaign: null,
+    campaignNumber: 1,
+    bestDaysByCampaign: {}
   };
 }
 
@@ -161,6 +165,9 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   merged.version = SAVE_VERSION;
   merged.mode = saved.mode === 'arcade' ? 'arcade' : 'rush';
   merged.campaign = normalizeCampaign(saved.campaign);
+  merged.campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, Math.floor(merged.campaignNumber) || 1));
+  merged.bestDaysByCampaign =
+    saved.bestDaysByCampaign && typeof saved.bestDaysByCampaign === 'object' ? { ...saved.bestDaysByCampaign } : {};
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
   merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));

@@ -4,13 +4,12 @@ import { useCallback, useRef, useState } from 'react';
 import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
-import { LORD } from '../../game/content/monsters';
 import { legacyFrom, trophiesFrom } from '../../game/content/milestones';
 import { challengeSouls, challengesFrom } from '../../game/content/challenges';
 import { toDungeon, unlockSoulCost } from '../../game/state/economy';
 import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
 import { FAME_MAX, canPlace, unlockedFor, type GameState } from '../../game/state/save';
-import { absorbResult, returningNote } from '../../game/state/roster';
+import { absorbResult } from '../../game/state/roster';
 import {
   activeParty,
   advanceDay,
@@ -31,13 +30,14 @@ import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
 import { CampaignSheet } from './panels/CampaignSheet';
 import { RoomPlacementView } from './panels/RoomPlacementView';
+import { CampaignIdle } from './panels/CampaignIdle';
 import { ExploreView } from './panels/ExploreView';
 import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradePanel } from './panels/UpgradePanel';
 import { WorldSheet } from './panels/WorldSheet';
-import { Coach, HeroTeaser, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
+import { Coach, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
 import { ICON, artVars } from './art';
 import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
@@ -351,7 +351,6 @@ export default function GameShell() {
     if (state && state.tutorial === 5) advanceTutorial(5);
   }
 
-  const veteranNote = returningNote(raider);
   const coachHidden = busy || sheet !== null || offline !== null || camp !== null;
 
   return (
@@ -390,7 +389,7 @@ export default function GameShell() {
         </button>
       </nav>
 
-      {!campaignMode && (takeover || tab === 'campaign') && (
+      {battleMode && (
         <DungeonView
         rooms={state.rooms}
         levels={state.levels}
@@ -465,32 +464,17 @@ export default function GameShell() {
         />
       )}
 
-      {campaignMode && camp ? (
+      {campaignMode && camp && (
         <DayPanel camp={camp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishCampaign} />
-      ) : battleMode || tab !== 'campaign' ? null : (
-        <HeroTeaser
-          defId={raider.defId}
-          name={raider.name}
-          title={raider.title}
-          note={veteranNote}
-          raiding={busy}
-          status={
-            view.litRoom < 0
-              ? 'At the entrance.'
-              : view.litRoom >= EDITABLE_ROOMS
-                ? `Throne Room — facing ${LORD.short}.`
-                : `Room ${view.litRoom + 1} of ${EDITABLE_ROOMS}.`
-          }
-        />
       )}
 
       {!takeover && tab === 'campaign' && (
-        <div className="bottom">
-          <button className="raid btn" onClick={openIntel} disabled={locked}>
-            <img src={ICON.raid} alt="" />
-            CAMPAIGN
-          </button>
-        </div>
+        <CampaignIdle
+          campaignNumber={state.campaignNumber}
+          bestDays={state.bestDaysByCampaign[state.campaignNumber] || 0}
+          locked={locked}
+          onStart={openIntel}
+        />
       )}
 
       {!takeover && (

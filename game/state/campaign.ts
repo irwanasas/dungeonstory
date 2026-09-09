@@ -4,6 +4,7 @@ import type {
   DayEventOption,
   Dungeon,
   CampaignTier,
+  HeroFamily,
   HeroInstance,
   HeroRecord,
   MonsterRuntime,
@@ -50,6 +51,20 @@ import type { GameState } from './save';
 export const CAMPAIGN_SHAPE = 3;
 
 const GAP: Record<CampaignTier, number> = { early: 3, mid: 4, late: 5 };
+
+const FAMILY_CYCLE: HeroFamily[] = ['warrior', 'rogue', 'mage'];
+
+export function campaignFamily(n: number): HeroFamily {
+  return FAMILY_CYCLE[(Math.max(1, n) - 1) % FAMILY_CYCLE.length];
+}
+
+export function familyHeroes(family: HeroFamily): string[] {
+  return HEROES.filter((h) => h.family === family).map((h) => h.id);
+}
+
+export function campaignTier(n: number): CampaignTier {
+  return n <= 3 ? 'early' : n <= 6 ? 'mid' : 'late';
+}
 
 export interface CampaignSetup {
   tier: CampaignTier;
