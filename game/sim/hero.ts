@@ -65,8 +65,13 @@ export function traitBlocked(hero: HeroInstance, trait: TraitId): boolean {
 function evasionOf(hero: HeroInstance, def: HeroDef): number {
   if (traitBlocked(hero, 'dodge')) return 0;
   let e = def.evasion;
-  for (const s of hero.status) e += statusDef(s.kind).evasionDelta;
-  return Math.max(0, Math.min(0.85, e));
+  let cap = 0.85;
+  for (const s of hero.status) {
+    const sd = statusDef(s.kind);
+    e += sd.evasionDelta;
+    if (sd.evasionDelta >= 1) cap = 1;
+  }
+  return Math.max(0, Math.min(cap, e));
 }
 
 export function atkMultOfList(status: ActiveStatus[]): number {
@@ -173,7 +178,7 @@ export function advanceStatuses(hero: HeroInstance, out: RaidEvent[]): void {
   for (const kind of expired) out.push({ t: 'statusOff', kind });
 }
 
-export const COMBAT_SCOPED: StatusKind[] = ['brace', 'vanish'];
+export const COMBAT_SCOPED: StatusKind[] = ['brace', 'vanish', 'warded', 'paralyzed'];
 
 export function clearCombatScoped(hero: HeroInstance, out: RaidEvent[]): void {
   for (const kind of COMBAT_SCOPED) clearStatus(hero, kind, out);

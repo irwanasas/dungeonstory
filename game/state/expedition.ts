@@ -71,6 +71,8 @@ export interface PartyMember {
   wave: number;
   alive: boolean;
   fled: boolean;
+  king?: boolean;
+  doubledEffect?: boolean;
 }
 
 export interface ExpModifier {
@@ -161,8 +163,31 @@ function roomRuntime(dungeon: Dungeon): (MonsterRuntime | null)[] {
   return out;
 }
 
-function makeMember(record: HeroRecord, world: WorldModifiers, wave: number): PartyMember {
-  return { hero: buildHero(record, world), record, killedByTag: null, wave, alive: true, fled: false };
+function makeMember(record: HeroRecord, world: WorldModifiers, wave: number, king = false): PartyMember {
+  return { hero: buildHero(record, world), record, killedByTag: null, wave, alive: true, fled: false, king };
+}
+
+export const KING_LINE = 'The Party was wiped out, but this King has Arrived.';
+
+function makeKing(exp: ExpeditionState, world: WorldModifiers, wave: number): PartyMember {
+  const defId = exp.setup.arthurDefId;
+  const def = heroDef(defId);
+  const level = Math.min(15, stageDef(exp.setup.stage).heroLevel + 4);
+  return makeMember(
+    {
+      uid: 'king' + exp.seed.toString(36),
+      defId,
+      name: 'King Arthur',
+      title: def.role,
+      level,
+      raids: 0,
+      deaths: 0,
+      scars: []
+    },
+    world,
+    wave,
+    true
+  );
 }
 
 export const WAVE_SIZE = 3;
@@ -209,7 +234,12 @@ function rollWave(
   return out;
 }
 
-export function beginExpedition(state: GameState, record: HeroRecord, rng: Rng): ExpeditionState {
+export function beginExpedition(
+  state: GameState,
+  record: HeroRecord,
+  rng: Rng,
+  guardianId?: string
+): ExpeditionState {
   const stage = stageDef(state.stage);
   const tier = tierOf(state.stage);
   const gap = GAP[tier];
@@ -234,7 +264,7 @@ export function beginExpedition(state: GameState, record: HeroRecord, rng: Rng):
       dungeon,
       stage: state.stage,
       tierScale: state.stage,
-      guardianId: MONSTERS[Math.floor(rng() * MONSTERS.length) % MONSTERS.length].id,
+      guardianId: guardianId || MONSTERS[Math.floor(rng() * MONSTERS.length) % MONSTERS.length].id,
       arthurDefId: HEROES[Math.floor(rng() * HEROES.length) % HEROES.length].id,
       pool: stage.heroPool
     },
@@ -281,6 +311,7 @@ export function endExpedition(
 
   let roster = state.roster;
   for (const m of exp.party) {
+    if (m.king) continue;
     roster = absorbResult(roster, m.record, { survived: m.alive || m.fled, killedByTag: m.killedByTag });
   }
 
@@ -351,6 +382,36 @@ export function normalizeExpedition(input: unknown): ExpeditionState | null {
   return e as ExpeditionState;
 }
 
+export interface Intel {
+  tier: ExpTier;
+  totalDays: number;
+  gap: number;
+  waveSize: number;
+  pool: { defId: string; name: string; role: string }[];
+  arthur: { defId: string; name: string; ability: string; blurb: string };
+  lordLevel: number;
+}
+
+export function expeditionIntel(state: GameState, arthurDefId: string): Intel {
+  const stage = stageDef(state.stage);
+  const tier = tierOf(state.stage);
+  const gap = GAP[tier];
+  const pool = (stage.heroPool.length > 0 ? stage.heroPool : HEROES.map((h) => h.id)).map((id) => {
+    const d = heroDef(id);
+    return { defId: id, name: d.name, role: d.role };
+  });
+  const a = heroDef(arthurDefId);
+  return {
+    tier,
+    totalDays: gap * CHECKPOINTS,
+    gap,
+    waveSize: WAVE_SIZE,
+    pool,
+    arthur: { defId: a.id, name: a.name, ability: a.ability.name, blurb: a.ability.blurb },
+    lordLevel: Math.max(state.lordLevel, stage.lordLevel)
+  };
+}
+
 export function isCheckpointDay(exp: ExpeditionState): boolean {
   return exp.setup.checkpointDays.includes(exp.day);
 }
@@ -369,8 +430,10 @@ export function actingMember(exp: ExpeditionState): PartyMember | null {
 }
 
 export function activeParty(exp: ExpeditionState): PartyMember[] {
-  const wave = Math.max(...exp.party.map((m) => m.wave));
-  return livingMembers(exp).filter((m) => m.wave === wave);
+  const living = livingMembers(exp);
+  if (living.length === 0) return [];
+  const wave = Math.max(...living.map((m) => m.wave));
+  return living.filter((m) => m.wave === wave);
 }
 
 export function eligibleEvents(exp: ExpeditionState): DayEvent[] {
@@ -533,6 +596,13 @@ function advanceAll(exp: ExpeditionState, out: RaidEvent[]): void {
 function callBackup(exp: ExpeditionState, world: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
   exp.totals.wavesLost += 1;
   out.push({ t: 'waveWipe', wave: exp.waveIndex });
+  // If the only checkpoint left is the Throne, no relief column can reach it in
+  // time. Nobody else is coming, and the King arrives alone.
+  const nextCheckpoint = exp.setup.checkpointDays.find((d) => d > exp.day);
+  if (nextCheckpoint === undefined || nextCheckpoint >= exp.setup.totalDays) {
+    exp.backupPending = false;
+    return;
+  }
   exp.waveIndex += 1;
   exp.party = [
     ...exp.party,
@@ -717,9 +787,29 @@ export function commitChoice(exp: ExpeditionState, optionId: string, world: Worl
 
 function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: RaidEvent[]): void {
   const rng = dayRng(exp, 2);
-  const index = exp.checkpoint;
-  const isThrone = index >= EDITABLE_ROOMS;
-  const wave = activeParty(exp);
+  const isThrone = exp.day >= exp.setup.totalDays || exp.checkpoint >= EDITABLE_ROOMS;
+  const index = isThrone ? EDITABLE_ROOMS : exp.checkpoint;
+  const label = isThrone ? 'the Throne Room' : `Room ${index + 1}`;
+  let wave = activeParty(exp);
+
+  if (isThrone && !exp.party.some((m) => m.king)) {
+    const alone = wave.length === 0;
+    // Join the wave that actually arrived, not the muster counter: a suppressed
+    // backup can leave those two out of step, which would strand his Ward.
+    const king = makeKing(exp, mods, alone ? exp.waveIndex : wave[0].wave);
+    king.doubledEffect = alone;
+    exp.party = [...exp.party, king];
+    wave = activeParty(exp);
+    exp.log.push({
+      day: exp.day,
+      kind: 'king',
+      text: alone ? KING_LINE : `King Arthur joins the survivors at ${label}.`
+    });
+    if (alone) {
+      exp.dayTitle = 'The King Has Arrived';
+      exp.dayBody = KING_LINE;
+    }
+  }
 
   if (wave.length === 0) {
     exp.dayTitle = 'No One Comes';
@@ -728,8 +818,7 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
     return;
   }
 
-  const label = isThrone ? 'the Throne Room' : `Room ${index + 1}`;
-  const wantsOut = wave.filter((m) => wantsToFlee(m.hero, heroDef(m.hero.defId), rng));
+  const wantsOut = isThrone ? [] : wave.filter((m) => wantsToFlee(m.hero, heroDef(m.hero.defId), rng));
 
   if (wantsOut.length * 2 > wave.length) {
     out.push({ t: 'decision', intent: 'flee', note: fleeNote(wantsOut[0].hero, heroDef(wantsOut[0].hero.defId)) });
@@ -758,11 +847,22 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
     roomIndex,
     built,
     isThrone,
-    party: wave.map((m) => ({ hero: m.hero, def: heroDef(m.hero.defId) })),
+    party: wave.map((m) => ({
+      hero: m.hero,
+      def: heroDef(m.hero.defId),
+      king: m.king,
+      doubled: m.doubledEffect
+    })),
     runtime: exp.monsters[roomIndex],
     world: mods,
     rng,
-    lord: isThrone ? { level: exp.setup.dungeon.lordLevel, weaponId: exp.setup.dungeon.lordWeaponId } : null,
+    lord: isThrone
+      ? {
+          level: exp.setup.dungeon.lordLevel,
+          weaponId: exp.setup.dungeon.lordWeaponId,
+          guardianId: exp.setup.guardianId
+        }
+      : null,
     killedByTag: null
   });
 

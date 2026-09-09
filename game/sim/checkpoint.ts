@@ -15,8 +15,9 @@ import { monsterDef } from '../content/monsters';
 import { lordWeapon } from '../content/lordWeapons';
 import { trapDef } from '../content/traps';
 import { treasureDef } from '../content/treasure';
-import { resolveHit, tickStatusDamage } from './hero';
+import { applyStatus, resolveHit, tickStatusDamage } from './hero';
 import { statusDef } from '../content/statuses';
+import { guardianKit } from '../content/guardians';
 import { decideDisarm, decideLoot, lootNote } from './ai';
 import {
   fightGroup,
@@ -33,6 +34,8 @@ import type { Rng } from './rng';
 export interface CombatMember {
   hero: HeroInstance;
   def: HeroDef;
+  king?: boolean;
+  doubled?: boolean;
 }
 
 export interface ProcOffer {
@@ -49,7 +52,7 @@ export interface CheckpointInput {
   runtime: MonsterRuntime | null;
   world: WorldModifiers;
   rng: Rng;
-  lord: { level: number; weaponId: string } | null;
+  lord: { level: number; weaponId: string; guardianId?: string } | null;
   killedByTag: Tag | null;
   foeCap?: number;
 }
@@ -102,7 +105,13 @@ function writeBack(runtime: MonsterRuntime | null, foes: Foe[], count: number): 
 export function runCheckpoint(input: CheckpointInput): CheckpointResult {
   const { built, isThrone, party, world, rng } = input;
   const out: RaidEvent[] = [];
-  const members: Combatant[] = party.map((m) => ({ hero: m.hero, def: m.def, killedByTag: input.killedByTag }));
+  const members: Combatant[] = party.map((m) => ({
+    hero: m.hero,
+    def: m.def,
+    killedByTag: input.killedByTag,
+    king: m.king,
+    doubled: m.doubled
+  }));
   const ctx: PartyCtx = { members, rng, out, world };
   const multi = members.length > 1;
   const living = () => members.filter((m) => m.hero.hp > 0);
@@ -132,13 +141,44 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
 
   if (isThrone) {
     const spec = input.lord;
+    const kit = spec && spec.guardianId ? guardianKit(spec.guardianId) : null;
     const lord = lordEnemy(lordWeapon(spec ? spec.weaponId : ''), spec ? spec.level : 1, world);
+    if (kit) {
+      lord.hp = Math.max(1, Math.round(lord.hp * kit.lordHp));
+      lord.maxHp = lord.hp;
+      lord.atk = Math.max(1, Math.round(lord.atk * kit.lordAtk));
+      lord.defPierce = Math.min(0.95, lord.defPierce + kit.lordPierce);
+    }
+
     out.push({ t: 'enterRoom', room: EDITABLE_ROOMS, kind: 'throne', contentId: 'lord' });
     out.push({ t: 'doorOpen', room: EDITABLE_ROOMS });
     out.push({ t: 'lordAppear', level: spec ? spec.level : 1, hp: lord.hp, maxHp: lord.maxHp });
+
+    const throneFoes: Foe[] = [toFoe(lord, 0)];
+    if (kit) {
+      const gd = monsterDef(kit.id);
+      for (let i = 0; i < kit.count; i++) {
+        const g = monsterEnemy(gd, spec ? spec.level : 1, world);
+        g.hp = Math.max(1, Math.round(g.hp * kit.guardHp));
+        g.maxHp = g.hp;
+        g.atk = Math.max(1, Math.round(g.atk * kit.guardAtk));
+        g.defPierce = Math.min(0.95, g.defPierce + kit.guardPierce);
+        if (!kit.keepSplit) g.splitAt = 0;
+        if (kit.opener) g.applies = null;
+        const foe = toFoe(g, i + 1, [], kit.guardRegen);
+        throneFoes.push(foe);
+        out.push({ t: 'monsterAppear', monsterId: gd.id, hp: foe.hp, maxHp: foe.maxHp, slot: foe.slot });
+      }
+      if (kit.opener) {
+        for (const m of members) {
+          if (m.hero.hp <= 0) continue;
+          applyStatus(m.hero, kit.opener.kind, kit.opener.days, m.def, out);
+        }
+      }
+    }
     out.push({ t: 'reaction', kind: 'surprise' });
 
-    const res = fightGroup(ctx, [toFoe(lord, 0)]);
+    const res = fightGroup(ctx, throneFoes);
     result.killedByTag = firstKill();
     result.wiped = res.wiped;
     result.cleared = res.foesDead;

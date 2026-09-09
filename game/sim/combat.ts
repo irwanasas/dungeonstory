@@ -15,6 +15,7 @@ import {
   atkMultOfList,
   defMultOf,
   defMultOfList,
+  hasStatus,
   heal,
   resolveHit,
   tickStatusDamage,
@@ -95,16 +96,21 @@ export interface Foe extends Enemy {
   slot: number;
   splitDone: boolean;
   status: ActiveStatus[];
+  regen: number;
 }
 
-export function toFoe(enemy: Enemy, slot: number, status: ActiveStatus[] = []): Foe {
-  return { ...enemy, slot, splitDone: enemy.splitAt <= 0, status };
+export function toFoe(enemy: Enemy, slot: number, status: ActiveStatus[] = [], regen = 0): Foe {
+  return { ...enemy, slot, splitDone: enemy.splitAt <= 0, status, regen };
 }
 
 export interface Combatant {
   hero: HeroInstance;
   def: HeroDef;
   killedByTag: Tag | null;
+  king?: boolean;
+  doubled?: boolean;
+  cheated?: boolean;
+  announced?: boolean;
 }
 
 export interface PartyCtx {
@@ -164,11 +170,26 @@ function foeStrike(ctx: PartyCtx, foe: Foe, target: Combatant, tagSlot: boolean)
 }
 
 function memberStrike(ctx: PartyCtx, m: Combatant, foe: Foe, round: number, tagSlot: boolean): void {
+  const x = m.king ? (m.doubled ? 2 : 1) : 1;
   const miss = ctx.rng() < foe.evasion;
   let dmg = m.hero.atk * atkMultOf(m.hero);
   const crit = round === 0 && m.def.burst > 1 && !traitBlocked(m.hero, 'burst');
-  if (crit) dmg *= m.def.burst;
-  if (!traitBlocked(m.hero, 'ramp')) dmg *= 1 + Math.min(m.def.rampCap, m.def.rampPerRound * round);
+  if (crit) {
+    dmg *= m.king ? m.def.burst * (1 + 0.5 * x) : m.def.burst;
+    if (m.king && !m.announced) {
+      m.announced = true;
+      ctx.out.push({ t: 'ability', id: m.def.ability.id, name: m.def.ability.name });
+    }
+  }
+  if (!traitBlocked(m.hero, 'ramp')) {
+    const per = m.king ? m.def.rampPerRound * (1 + 0.8 * x) : m.def.rampPerRound;
+    const cap = m.king ? m.def.rampCap * (1 + 0.2 * x) : m.def.rampCap;
+    dmg *= 1 + Math.min(cap, per * round);
+    if (m.king && per > 0 && round === 1 && !m.announced) {
+      m.announced = true;
+      ctx.out.push({ t: 'ability', id: m.def.ability.id, name: m.def.ability.name });
+    }
+  }
   dmg = Math.max(1, Math.round(dmg - foe.def * defMultOfList(foe.status)));
   if (miss) dmg = 0;
   foe.hp = Math.max(0, foe.hp - dmg);
@@ -219,8 +240,20 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
     ctx.out.push({ t: 'actor', index: i, name: m.hero.name, defId: m.hero.defId });
   };
 
+  const cheatDeath = (m: Combatant) => {
+    if (!m.king || m.cheated || m.hero.hp > 0) return;
+    if (m.def.ability.id !== 'rage') return;
+    m.cheated = true;
+    m.hero.hp = Math.max(1, Math.round(m.hero.maxHp * 0.3));
+    m.hero.atk = Math.round(m.hero.atk * 1.1);
+    ctx.out.push({ t: 'ability', id: 'rage', name: m.def.ability.name });
+    ctx.out.push({ t: 'reaction', kind: 'rage' });
+    ctx.out.push({ t: 'heal', amount: m.hero.hp, heroHp: m.hero.hp });
+  };
+
   const downed = new Set<number>();
   const reportDown = (i: number) => {
+    cheatDeath(ctx.members[i]);
     if (!multiMember || downed.has(i) || alive(ctx.members[i])) return;
     downed.add(i);
     ctx.out.push({ t: 'reaction', kind: 'dead' });
@@ -240,6 +273,7 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
 
     for (const foe of foes) {
       if (!standing(foe)) continue;
+      if (foe.regen > 0 && foe.hp < foe.maxHp) foe.hp = Math.min(foe.maxHp, foe.hp + Math.max(1, Math.round(foe.maxHp * foe.regen)));
       tickFoeStatus(foe, ctx.out, multiFoe);
       if (foe.hp <= 0 && foe.source === 'monster') {
         ctx.out.push({ t: 'monsterDown', monsterId: foe.id, ...(multiFoe ? { slot: foe.slot } : {}) });
@@ -252,7 +286,17 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
       if (!alive(m)) continue;
       setActor(i);
       if (m.def.regen > 0 && !traitBlocked(m.hero, 'regen')) heal(m.hero, m.hero.maxHp * m.def.regen, ctx.out);
-      tryAbility(m.hero, m.def, ctx.out);
+      tryAbility(
+        m.hero,
+        m.def,
+        ctx.out,
+        m.king
+          ? {
+              doubled: !!m.doubled,
+              ward: ctx.members.filter((w) => w !== m && alive(w)).map((w) => ({ hero: w.hero, def: w.def }))
+            }
+          : undefined
+      );
     }
 
     const acting = foes.filter((f) => standing(f) && round % f.cadence === f.cadence - 1);
@@ -270,6 +314,7 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
     for (let i = 0; i < ctx.members.length; i++) {
       const m = ctx.members[i];
       if (!alive(m)) continue;
+      if (hasStatus(m.hero, 'paralyzed')) continue;
       const foe = foes.find(standing);
       if (!foe) break;
       setActor(i);

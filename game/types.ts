@@ -11,7 +11,9 @@ export type StatusKind =
   | 'fear'
   | 'greedy'
   | 'brace'
-  | 'vanish';
+  | 'vanish'
+  | 'warded'
+  | 'paralyzed';
 
 export type TraitId = 'rage' | 'regen' | 'burst' | 'ramp' | 'dodge' | 'mitigate';
 

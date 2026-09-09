@@ -15,15 +15,19 @@ import {
   beginExpedition,
   commitChoice,
   endExpedition,
+  expeditionIntel,
   isCheckpointDay,
   type ExpeditionState
 } from '../../game/state/expedition';
+import { HEROES } from '../../game/content/heroes';
+import { MONSTERS } from '../../game/content/monsters';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
 import { BuildSheet } from './panels/BuildSheet';
 import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
 import { ExpeditionSheet } from './panels/ExpeditionSheet';
+import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradeSheet } from './panels/UpgradeSheet';
 import { WorldSheet } from './panels/WorldSheet';
@@ -33,7 +37,7 @@ import { CELL, useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | 'report' | null;
+type SheetKind = 'build' | 'upgrade' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
 
 export default function GameShell() {
   const { state, raider, offline, setOffline, update, rollRaider, resetState } = useGameState();
@@ -43,6 +47,8 @@ export default function GameShell() {
   const [news, setNews] = useState<WorldEvent | null>(null);
   const [report, setReport] = useState<ExpeditionState | null>(null);
   const [stepping, setStepping] = useState(false);
+  const [guardian, setGuardian] = useState(MONSTERS[0].id);
+  const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
@@ -141,12 +147,26 @@ export default function GameShell() {
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
   }
 
+  function openIntel() {
+    if (locked || !state) return;
+    setArthur(HEROES[Math.floor(Math.random() * HEROES.length)].id);
+    setSheet('intel');
+    sfx('tap');
+  }
+
   function startExpedition() {
     if (locked || !state || !raider) return;
     startAmbient();
-    sfx('tap');
+    sfx('door');
+    setSheet(null);
     if (state.tutorial === 2) advanceTutorial(2);
-    update((s) => ({ ...s, expedition: beginExpedition(s, raider, systemRng) }));
+    const chosen = guardian;
+    const king = arthur;
+    update((s) => {
+      const exp = beginExpedition(s, raider, systemRng, chosen);
+      exp.setup.arthurDefId = king;
+      return { ...s, expedition: exp };
+    });
   }
 
   async function nextDay() {
@@ -325,7 +345,7 @@ export default function GameShell() {
         >
           <img src={ICON.build} alt="" />
         </button>
-        <button className="raid btn" onClick={startExpedition} disabled={locked}>
+        <button className="raid btn" onClick={openIntel} disabled={locked}>
           <img src={ICON.raid} alt="" />
           {onExpedition ? 'ON THE ROAD' : 'EXPEDITION'}
         </button>
@@ -355,6 +375,17 @@ export default function GameShell() {
       <WorldSheet open={sheet === 'world'} state={state} onClose={closeSheet} />
       <SettingsSheet open={sheet === 'settings'} state={state} onClose={closeSheet} onReset={resetGame} />
 
+      <IntelSheet
+        open={sheet === 'intel'}
+        intel={expeditionIntel(state, arthur)}
+        guardianId={guardian}
+        onPick={(id) => {
+          setGuardian(id);
+          sfx('tap');
+        }}
+        onStart={startExpedition}
+        onClose={closeSheet}
+      />
       <ExpeditionSheet open={sheet === 'report'} exp={report} onClose={closeSheet} />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />

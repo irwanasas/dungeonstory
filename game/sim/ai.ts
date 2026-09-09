@@ -36,14 +36,23 @@ export function decideDisarm(hero: HeroInstance, def: HeroDef, rng: Rng): boolea
   return rng() < def.disarmChance;
 }
 
-export function tryAbility(hero: HeroInstance, def: HeroDef, out: RaidEvent[]): boolean {
+export interface KingContext {
+  doubled: boolean;
+  ward: { hero: HeroInstance; def: HeroDef }[];
+}
+
+export function tryAbility(hero: HeroInstance, def: HeroDef, out: RaidEvent[], king?: KingContext): boolean {
   if (hero.cooldown > 0) {
     hero.cooldown -= 1;
     return false;
   }
   const pct = hpPct(hero);
+  const x = king ? (king.doubled ? 2 : 1) : 1;
 
   if (def.ability.id === 'rage' && def.rage) {
+    // The King does not rage at a third health. He refuses to die instead,
+    // handled once at zero HP in combat.ts.
+    if (king) return false;
     if (hero.raged || pct > def.rage.hpPct) return false;
     if (traitBlocked(hero, 'rage')) return false;
     hero.raged = true;
@@ -58,16 +67,18 @@ export function tryAbility(hero: HeroInstance, def: HeroDef, out: RaidEvent[]): 
     if (pct > 0.45 || hasStatus(hero, 'brace')) return false;
     hero.cooldown = 2;
     out.push({ t: 'ability', id: 'brace', name: def.ability.name });
-    applyStatus(hero, 'brace', 2, def, out);
+    applyStatus(hero, 'brace', 2 * x, def, out);
+    if (king) for (const w of king.ward) applyStatus(w.hero, 'brace', 2, w.def, out);
     return true;
   }
 
   if (def.ability.id === 'vanish') {
-    if (pct > 0.32 || hasStatus(hero, 'vanish')) return false;
+    const kind = king ? 'warded' : 'vanish';
+    if (pct > 0.32 || hasStatus(hero, kind)) return false;
     if (traitBlocked(hero, 'dodge')) return false;
     hero.cooldown = 3;
     out.push({ t: 'ability', id: 'vanish', name: def.ability.name });
-    applyStatus(hero, 'vanish', 2, def, out);
+    applyStatus(hero, kind, 2 * x, def, out);
     return true;
   }
 
@@ -76,9 +87,13 @@ export function tryAbility(hero: HeroInstance, def: HeroDef, out: RaidEvent[]): 
     hero.cooldown = 4;
     out.push({ t: 'ability', id: 'bloom', name: def.ability.name });
     out.push({ t: 'reaction', kind: 'heal' });
-    heal(hero, hero.maxHp * 0.15, out);
+    heal(hero, hero.maxHp * 0.15 * x, out);
+    if (king) for (const w of king.ward) heal(w.hero, w.hero.maxHp * 0.15, out);
     return true;
   }
 
+  // Death Mark and Surge are pure data for an ordinary hero, read during damage
+  // computation rather than triggered here. The King's versions extend them in
+  // the same place, in combat.ts.
   return false;
 }

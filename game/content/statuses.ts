@@ -118,6 +118,27 @@ const STATUSES: Record<StatusKind, StatusDef> = {
     tags: [],
     desc: 'Shield raised: the next room lands much softer.'
   },
+  warded: {
+    ...base(),
+    kind: 'warded',
+    name: 'Warded',
+    short: 'WRD',
+    duration: 2,
+    evasionDelta: 1,
+    atkMult: 1.1,
+    tags: [],
+    desc: 'The King steps out of reach entirely, and strikes harder for it.'
+  },
+  paralyzed: {
+    ...base(),
+    kind: 'paralyzed',
+    name: 'Paralyzed',
+    short: 'PAR',
+    duration: 2,
+    evasionDelta: -0.3,
+    tags: ['arcane'],
+    desc: 'Frozen mid-step. Cannot strike at all until it passes.'
+  },
   vanish: {
     ...base(),
     kind: 'vanish',
