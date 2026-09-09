@@ -11,6 +11,7 @@ import type {
   Outcome,
   RaidEvent,
   RaidResult,
+  StatusKind,
   Tag,
   WorldEffect,
   WorldEvent,
@@ -19,7 +20,10 @@ import type {
 } from '../types';
 import { CHECKPOINTS, EDITABLE_ROOMS, FAME_MAX } from '../types';
 import { DAY_EVENTS, dayEvent } from '../content/dayEvents';
-import { MONSTERS } from '../content/monsters';
+import { INTERACTIONS } from '../content/interactions';
+import { MONSTERS, monsterDef } from '../content/monsters';
+import { trapDef } from '../content/traps';
+import { lordWeapon } from '../content/lordWeapons';
 import { HEROES, heroDef } from '../content/heroes';
 import { STAGE_MAX, stageDef, tierOf } from '../content/stages';
 import { legacyFrom, trophiesFrom } from '../content/milestones';
@@ -320,13 +324,74 @@ export function eligibleEvents(exp: ExpeditionState): DayEvent[] {
   });
 }
 
+const PROXIMITY: Record<number, number> = { 1: 1.5, 2: 0.75 };
+const STATUS_BOOST = 2;
+
+function setupStatusesFor(tag: Tag): StatusKind[] {
+  return INTERACTIONS.filter((i) => i.incomingTag === tag).map((i) => i.requiresStatus);
+}
+
+export function upcomingTag(exp: ExpeditionState): Tag | null {
+  const index = exp.checkpoint;
+  if (index >= EDITABLE_ROOMS) return lordWeapon(exp.setup.dungeon.lordWeaponId).tag;
+  const built = exp.setup.dungeon.rooms[index];
+  if (!built) return null;
+  if (built.slot.kind === 'trap') return trapDef(built.slot.id).tag;
+  if (built.slot.kind === 'monster') return monsterDef(built.slot.id).tag;
+  return null;
+}
+
+function overlapScore(e: DayEvent, roomTag: Tag | null): number {
+  if (!roomTag) return 0;
+  const wanted = setupStatusesFor(roomTag);
+  let score = 0;
+  for (const o of e.options) {
+    const app = o.applyStatus;
+    if (app && (app.to === 'party' || app.to === 'both') && wanted.includes(app.kind)) score += 1;
+  }
+  if (e.tags && e.tags.includes(roomTag)) score += 1;
+  return score;
+}
+
+export interface WeightCtx {
+  daysToCheckpoint: number;
+  upcoming: Tag | null;
+  decay: Partial<Record<string, number>>;
+}
+
+export function dayEventWeights(pool: DayEvent[], ctx: WeightCtx): { event: DayEvent; weight: number }[] {
+  const prox = PROXIMITY[ctx.daysToCheckpoint] || 0;
+  return pool.map((event) => {
+    const overlap = prox > 0 ? overlapScore(event, ctx.upcoming) : 0;
+    const decayFactor = 1 / (1 + (ctx.decay[event.category] || 0));
+    const statusBoost = event.requiresStatus && event.requiresStatus.length > 0 ? STATUS_BOOST : 1;
+    return { event, weight: event.weight * (1 + prox * overlap) * decayFactor * statusBoost };
+  });
+}
+
+export function weightsFor(exp: ExpeditionState, pool = eligibleEvents(exp)): { event: DayEvent; weight: number }[] {
+  return dayEventWeights(pool, {
+    daysToCheckpoint: daysToCheckpoint(exp),
+    upcoming: upcomingTag(exp),
+    decay: exp.decay
+  });
+}
+
 function pickEvent(exp: ExpeditionState, rng: Rng): DayEvent | null {
   const pool = eligibleEvents(exp);
   if (pool.length === 0) return null;
   const recent = exp.log.slice(-4).map((l) => l.kind);
   const fresh = pool.filter((e) => !recent.includes(e.id));
-  const from = fresh.length > 0 ? fresh : pool;
-  return from[Math.floor(rng() * from.length) % from.length];
+  const weighted = weightsFor(exp, fresh.length > 0 ? fresh : pool).filter((w) => w.weight > 0);
+  if (weighted.length === 0) return null;
+
+  const total = weighted.reduce((sum, w) => sum + w.weight, 0);
+  let roll = rng() * total;
+  for (const w of weighted) {
+    roll -= w.weight;
+    if (roll <= 0) return w.event;
+  }
+  return weighted[weighted.length - 1].event;
 }
 
 function toPending(e: DayEvent): PendingChoice {
