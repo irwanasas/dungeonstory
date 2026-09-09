@@ -115,6 +115,9 @@
   flex: 0 0 44px;
   position: relative;
 }
+.tab-icon.push-right {
+  margin-left: auto;
+}
 .tab-icon img {
   width: 18px;
   height: 18px;

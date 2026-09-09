@@ -257,13 +257,13 @@ export default function GameShell() {
       </header>
 
       <nav className="tabs">
-        <button className="tab tab-icon btn" onClick={() => openSheet('world')} disabled={busy} aria-label="The World">
+        <button className="tab tab-icon btn" onClick={() => {}} disabled={busy} aria-label="Announcements">
           <img src={ICON.world} alt="" />
           {(state.world.unread > 0 || effectCount(state.world) > 0) && (
             <span className={'tab-dot' + (state.world.unread === 0 ? ' live' : '')} />
           )}
         </button>
-        <button className="tab tab-icon btn" onClick={() => openSheet('codex')} disabled={busy} aria-label="Codex">
+        <button className="tab tab-icon btn push-right" onClick={() => openSheet('codex')} disabled={busy} aria-label="Codex">
           <img src={ICON.codex} alt="" />
         </button>
         <button className="tab tab-icon btn" onClick={() => openSheet('settings')} disabled={busy} aria-label="Settings">
