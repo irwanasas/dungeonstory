@@ -451,7 +451,6 @@ a.row.link {
 
 @media (max-height: 700px) {
   .raid { height: 58px; }
-  .side { width: 52px; height: 52px; }
   .teaser { min-height: 36px; }
 }
 
