@@ -12,13 +12,13 @@ import { returningNote } from '../../game/state/roster';
 import {
   activeParty,
   advanceDay,
-  beginExpedition,
+  beginCampaign,
   commitChoice,
-  endExpedition,
-  expeditionIntel,
+  endCampaign,
+  campaignIntel,
   isCheckpointDay,
-  type ExpeditionState
-} from '../../game/state/expedition';
+  type CampaignState
+} from '../../game/state/campaign';
 import { HEROES } from '../../game/content/heroes';
 import { MONSTERS } from '../../game/content/monsters';
 import { systemRng } from '../../game/sim/rng';
@@ -26,7 +26,7 @@ import DungeonView from './DungeonView';
 import { BuildSheet } from './panels/BuildSheet';
 import { CodexSheet } from './panels/CodexSheet';
 import { DayPanel } from './panels/DayPanel';
-import { ExpeditionSheet } from './panels/ExpeditionSheet';
+import { CampaignSheet } from './panels/CampaignSheet';
 import { RoomPlacementView } from './panels/RoomPlacementView';
 import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
@@ -57,7 +57,7 @@ export default function GameShell() {
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [justPlaced, setJustPlaced] = useState(-1);
   const [news, setNews] = useState<WorldEvent | null>(null);
-  const [report, setReport] = useState<ExpeditionState | null>(null);
+  const [report, setReport] = useState<CampaignState | null>(null);
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
@@ -66,14 +66,14 @@ export default function GameShell() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
-  const exp = state ? state.expedition : null;
-  const onExpedition = exp !== null && exp.status === 'active';
+  const camp = state ? state.campaign : null;
+  const onCampaign = camp !== null && camp.status === 'active';
   const busy = view.raiding || stepping;
-  const locked = busy || onExpedition;
+  const locked = busy || onCampaign;
   // A fight or an open road takes the whole screen; otherwise a tab owns it.
   const battleMode = view.raiding || battleStep;
-  const storyMode = exp !== null && !battleMode;
-  const takeover = battleMode || storyMode;
+  const campaignMode = camp !== null && !battleMode;
+  const takeover = battleMode || campaignMode;
 
   const advanceTutorial = useCallback(
     (from: number) => {
@@ -165,7 +165,7 @@ export default function GameShell() {
     sfx('tap');
   }
 
-  function startExpedition() {
+  function startCampaign() {
     if (locked || !state || !raider) return;
     startAmbient();
     sfx('door');
@@ -174,17 +174,17 @@ export default function GameShell() {
     const chosen = guardian;
     const king = arthur;
     update((s) => {
-      const exp = beginExpedition(s, raider, systemRng, chosen);
-      exp.setup.arthurDefId = king;
-      return { ...s, expedition: exp };
+      const camp = beginCampaign(s, raider, systemRng, chosen);
+      camp.setup.arthurDefId = king;
+      return { ...s, campaign: camp };
     });
   }
 
   async function nextDay() {
-    if (busy || !state || !exp || exp.pending) return;
-    const battle = isCheckpointDay(exp);
-    const wave = activeParty(exp);
-    const fromRoom = Math.max(-1, exp.checkpoint - 1);
+    if (busy || !state || !camp || camp.pending) return;
+    const battle = isCheckpointDay(camp);
+    const wave = activeParty(camp);
+    const fromRoom = Math.max(-1, camp.checkpoint - 1);
     setStepping(true);
     if (battle) {
       // Mount the dungeon before playback: the director captures scrollRef
@@ -192,8 +192,8 @@ export default function GameShell() {
       setBattleStep(true);
       await new Promise((r) => setTimeout(r, 0));
     }
-    const outcome = advanceDay(exp, state.world);
-    update((s) => ({ ...s, expedition: outcome.exp }));
+    const outcome = advanceDay(camp, state.world);
+    update((s) => ({ ...s, campaign: outcome.camp }));
     sfx(battle ? 'door' : 'tap');
 
     if (battle && outcome.events.length > 0 && wave.length > 0) {
@@ -210,20 +210,20 @@ export default function GameShell() {
   }
 
   function choose(optionId: string) {
-    if (busy || !state || !exp) return;
-    const outcome = commitChoice(exp, optionId, state.world);
-    update((s) => ({ ...s, expedition: outcome.exp }));
+    if (busy || !state || !camp) return;
+    const outcome = commitChoice(camp, optionId, state.world);
+    update((s) => ({ ...s, campaign: outcome.camp }));
     sfx('place');
   }
 
-  function finishExpedition() {
-    if (busy || !state || !exp || exp.status !== 'complete') return;
-    const done = endExpedition(state, exp, systemRng);
+  function finishCampaign() {
+    if (busy || !state || !camp || camp.status !== 'complete') return;
+    const done = endCampaign(state, camp, systemRng);
     update(() => done.state);
-    setReport(exp);
+    setReport(camp);
     setNews(done.fired);
     setSheet('report');
-    sfx(exp.outcome === 'dungeonWin' ? 'win' : exp.outcome === 'heroEscape' ? 'escape' : 'lose');
+    sfx(camp.outcome === 'dungeonWin' ? 'win' : camp.outcome === 'heroEscape' ? 'escape' : 'lose');
     if (state.tutorial === 3) advanceTutorial(3);
     rollRaider(done.state);
   }
@@ -243,7 +243,7 @@ export default function GameShell() {
   }
 
   const veteranNote = returningNote(raider);
-  const coachHidden = busy || sheet !== null || offline !== null || exp !== null;
+  const coachHidden = busy || sheet !== null || offline !== null || camp !== null;
 
   return (
     <div className="app" style={artVars}>
@@ -281,7 +281,7 @@ export default function GameShell() {
         </button>
       </nav>
 
-      {!storyMode && (takeover || tab === 'campaign') && (
+      {!campaignMode && (takeover || tab === 'campaign') && (
         <DungeonView
         rooms={state.rooms}
         levels={state.levels}
@@ -316,8 +316,8 @@ export default function GameShell() {
       )}
       {!takeover && tab === 'explore' && <StubView title="Explore" note="No roads open from here yet." />}
 
-      {storyMode && exp ? (
-        <DayPanel exp={exp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishExpedition} />
+      {campaignMode && camp ? (
+        <DayPanel camp={camp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishCampaign} />
       ) : battleMode || tab !== 'campaign' ? null : (
         <HeroTeaser
           defId={raider.defId}
@@ -339,7 +339,7 @@ export default function GameShell() {
         <div className="bottom">
           <button className="raid btn" onClick={openIntel} disabled={locked}>
             <img src={ICON.raid} alt="" />
-            EXPEDITION
+            CAMPAIGN
           </button>
         </div>
       )}
@@ -386,16 +386,16 @@ export default function GameShell() {
 
       <IntelSheet
         open={sheet === 'intel'}
-        intel={expeditionIntel(state, arthur)}
+        intel={campaignIntel(state, arthur)}
         guardianId={guardian}
         onPick={(id) => {
           setGuardian(id);
           sfx('tap');
         }}
-        onStart={startExpedition}
+        onStart={startCampaign}
         onClose={closeSheet}
       />
-      <ExpeditionSheet open={sheet === 'report'} exp={report} onClose={closeSheet} />
+      <CampaignSheet open={sheet === 'report'} camp={report} onClose={closeSheet} />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />
     </div>

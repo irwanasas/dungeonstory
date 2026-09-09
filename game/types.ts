@@ -174,7 +174,7 @@ export interface MonsterRuntime {
   units: MonsterUnit[];
 }
 
-export type ExpTier = 'early' | 'mid' | 'late';
+export type CampaignTier = 'early' | 'mid' | 'late';
 
 export interface StageDef {
   id: number;
@@ -360,7 +360,7 @@ export interface DayEvent {
   title: string;
   body: string;
   weight: number;
-  tiers: ExpTier[];
+  tiers: CampaignTier[];
   tags?: Tag[];
   requiresStatus?: StatusKind[];
   options: DayEventOption[];

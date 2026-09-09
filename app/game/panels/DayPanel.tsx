@@ -1,8 +1,8 @@
 'use client';
 
 import { CHECKPOINTS } from '../../../game/types';
-import type { DayTone, ExpeditionState } from '../../../game/state/expedition';
-import { activeParty, daysToCheckpoint, isCheckpointDay } from '../../../game/state/expedition';
+import type { DayTone, CampaignState } from '../../../game/state/campaign';
+import { activeParty, daysToCheckpoint, isCheckpointDay } from '../../../game/state/campaign';
 import { statusDef } from '../../../game/content/statuses';
 
 const TONE_LABEL: Record<DayTone, string> = {
@@ -14,25 +14,25 @@ const TONE_LABEL: Record<DayTone, string> = {
 };
 
 interface DayPanelProps {
-  exp: ExpeditionState;
+  camp: CampaignState;
   busy: boolean;
   onChoose: (optionId: string) => void;
   onNextDay: () => void;
   onFinish: () => void;
 }
 
-export function DayPanel({ exp, busy, onChoose, onNextDay, onFinish }: DayPanelProps) {
-  const pending = exp.pending;
-  const wave = activeParty(exp);
-  const gap = daysToCheckpoint(exp);
-  const tone: DayTone = exp.dayTone || 'neutral';
-  const title = pending ? pending.title : exp.dayTitle;
-  const body = pending ? pending.body : exp.dayBody;
-  const done = exp.status === 'complete';
+export function DayPanel({ camp, busy, onChoose, onNextDay, onFinish }: DayPanelProps) {
+  const pending = camp.pending;
+  const wave = activeParty(camp);
+  const gap = daysToCheckpoint(camp);
+  const tone: DayTone = camp.dayTone || 'neutral';
+  const title = pending ? pending.title : camp.dayTitle;
+  const body = pending ? pending.body : camp.dayBody;
+  const done = camp.status === 'complete';
 
   const ahead = done
     ? 'the road ends'
-    : isCheckpointDay(exp)
+    : isCheckpointDay(camp)
       ? 'they reach your gate'
       : gap === 1
         ? 'your gate tomorrow'
@@ -42,11 +42,11 @@ export function DayPanel({ exp, busy, onChoose, onNextDay, onFinish }: DayPanelP
     <div className={'story tone-' + tone}>
       <div className="story-head">
         <span className="story-day">
-          Day {exp.day}
-          <span className="story-of">/{exp.setup.totalDays}</span>
+          Day {camp.day}
+          <span className="story-of">/{camp.setup.totalDays}</span>
         </span>
         <span className="story-track">
-          {Math.min(exp.checkpoint + 1, CHECKPOINTS)} of {CHECKPOINTS} · {ahead}
+          {Math.min(camp.checkpoint + 1, CHECKPOINTS)} of {CHECKPOINTS} · {ahead}
         </span>
       </div>
 
@@ -55,7 +55,7 @@ export function DayPanel({ exp, busy, onChoose, onNextDay, onFinish }: DayPanelP
           <span className="story-tag">{TONE_LABEL[tone]}</span>
           <h2 className="story-title">{title}</h2>
           <p className="story-body">{body}</p>
-          {exp.aura && <div className="story-aura">{exp.aura.label}</div>}
+          {camp.aura && <div className="story-aura">{camp.aura.label}</div>}
         </div>
       </div>
 
@@ -105,7 +105,7 @@ export function DayPanel({ exp, busy, onChoose, onNextDay, onFinish }: DayPanelP
           ))
         ) : (
           <button className="next btn" onClick={onNextDay} disabled={busy}>
-            {isCheckpointDay(exp) ? 'They reach your gate' : 'Next Day'}
+            {isCheckpointDay(camp) ? 'They reach your gate' : 'Next Day'}
           </button>
         )}
       </div>

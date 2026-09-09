@@ -1,7 +1,7 @@
 'use client';
 
 import { GUARDIANS } from '../../../game/content/guardians';
-import type { Intel } from '../../../game/state/expedition';
+import type { Intel } from '../../../game/state/campaign';
 import { contentArt, heroArt } from '../art';
 import { Sheet } from './Sheet';
 

@@ -1,4 +1,4 @@
-import type { ExpTier, StageDef } from '../types';
+import type { CampaignTier, StageDef } from '../types';
 
 interface Seed {
   title: string;
@@ -59,7 +59,7 @@ export function stageDef(id: number): StageDef {
   return STAGES[Math.min(Math.max(1, id), STAGE_MAX) - 1];
 }
 
-export function tierOf(id: number): ExpTier {
+export function tierOf(id: number): CampaignTier {
   if (id <= 7) return 'early';
   if (id <= 14) return 'mid';
   return 'late';

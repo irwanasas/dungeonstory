@@ -27,7 +27,7 @@ export function normalizeWorld(input: Partial<WorldState> | undefined): WorldSta
 }
 
 export const WORLD_CLAMP: [number, number] = [CLAMP_LOW, CLAMP_HIGH];
-export const EXPEDITION_CLAMP: [number, number] = [0.7, 1.45];
+export const CAMPAIGN_CLAMP: [number, number] = [0.7, 1.45];
 
 function mul<K extends string>(map: Partial<Record<K, number>>, key: K, value: number): void {
   map[key] = (map[key] || 1) * value;

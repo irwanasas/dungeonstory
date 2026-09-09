@@ -173,7 +173,7 @@ export interface CoachStep {
 export const TUTORIAL: CoachStep[] = [
   { text: 'This is your dungeon. Six rooms. Swipe across them, then tap a room to put something inside.', pos: 'mid' },
   { text: 'Good. Fill another room or two — the order they meet things is the whole game.', pos: 'mid' },
-  { text: 'An expedition is forming. Start it, then walk the days with them until they reach your gate.', pos: 'low' },
+  { text: 'A campaign is forming. Start it, then walk the days with them until they reach your gate.', pos: 'low' },
   { text: 'That was your dungeon working. Take what it earned.', pos: 'mid' },
   { text: 'Gold makes your traps and monsters hurt more. Spend it.', pos: 'low' },
   { text: 'Now change the dungeon and run it again. The same heroes come back smarter.', pos: 'low' }

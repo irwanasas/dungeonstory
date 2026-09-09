@@ -1,7 +1,7 @@
 import type { HeroRecord, RoomSlot, WorldState } from '../types';
 import { EDITABLE_ROOMS, FAME_MAX, MAX_PER_ID } from '../types';
-import type { ExpeditionState } from './expedition';
-import { normalizeExpedition } from './expedition';
+import type { CampaignState } from './campaign';
+import { normalizeCampaign } from './campaign';
 import { STAGES } from '../content/stages';
 import { TRAPS } from '../content/traps';
 import { MONSTERS } from '../content/monsters';
@@ -48,7 +48,7 @@ export interface GameState {
   hallOfFame: LegacyEntry[];
   equippedLordWeapon: string;
   unlockedLordWeapons: string[];
-  expedition: ExpeditionState | null;
+  campaign: CampaignState | null;
 }
 
 const KEY = 'own_a_dungeon_v1';
@@ -131,7 +131,7 @@ export function defaultState(): GameState {
     hallOfFame: [],
     equippedLordWeapon: DEFAULT_LORD_WEAPON,
     unlockedLordWeapons: [DEFAULT_LORD_WEAPON],
-    expedition: null
+    campaign: null
   };
 }
 
@@ -160,7 +160,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   while (rooms.length < EDITABLE_ROOMS) rooms.push({ kind: 'empty' });
   merged.version = SAVE_VERSION;
   merged.mode = 'stage';
-  merged.expedition = normalizeExpedition(saved.expedition);
+  merged.campaign = normalizeCampaign(saved.campaign);
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
   merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));
