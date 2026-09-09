@@ -19,14 +19,14 @@ import type {
   WorldModifiers,
   WorldState
 } from '../types';
-import { CHECKPOINTS, EDITABLE_ROOMS, FAME_MAX } from '../types';
+import { CAMPAIGN_MAX, CHECKPOINTS, EDITABLE_ROOMS, FAME_MAX } from '../types';
 import { DAY_EVENTS, dayEvent, procFlavour } from '../content/dayEvents';
 import { INTERACTIONS } from '../content/interactions';
 import { MONSTERS, monsterDef } from '../content/monsters';
 import { trapDef } from '../content/traps';
 import { lordWeapon } from '../content/lordWeapons';
 import { HEROES, heroDef } from '../content/heroes';
-import { STAGE_MAX, stageDef, tierOf } from '../content/stages';
+import { STAGE_MAX, stageDef } from '../content/stages';
 import { makeName } from '../content/names';
 import { legacyFrom, trophiesFrom } from '../content/milestones';
 import { challengeSouls, challengesFrom } from '../content/challenges';
@@ -66,7 +66,12 @@ export function campaignTier(n: number): CampaignTier {
   return n <= 3 ? 'early' : n <= 6 ? 'mid' : 'late';
 }
 
+export function familyEffect(n: number): WorldEffect {
+  return { heroBias: familyHeroes(campaignFamily(n)) };
+}
+
 export interface CampaignSetup {
+  campaignNumber: number;
   tier: CampaignTier;
   gap: number;
   totalDays: number;
@@ -153,6 +158,7 @@ function dayRng(camp: CampaignState, salt: number): Rng {
 
 export function campaignEffects(camp: CampaignState): WorldEffect[] {
   const out = camp.mods.map((m) => m.effect);
+  out.push(familyEffect(camp.setup.campaignNumber));
   if (camp.aura) out.push(camp.aura.effect);
   for (const [tag, stacks] of Object.entries(camp.knowledge)) {
     const n = stacks as number;
@@ -228,7 +234,9 @@ function rollWave(
   }
   while (out.length < WAVE_SIZE) {
     const fresh = from.filter((id) => !taken.includes(id));
-    const draw = fresh.length > 0 ? fresh : from;
+    const open = fresh.length > 0 ? fresh : from;
+    const favoured = world.heroBias.filter((id) => open.includes(id));
+    const draw = favoured.length > 0 && rng() < 0.6 ? favoured : open;
     const defId = draw[Math.floor(rng() * draw.length) % draw.length];
     taken.push(defId);
     const def = heroDef(defId);
@@ -259,7 +267,8 @@ export function beginCampaign(
   guardianId?: string
 ): CampaignState {
   const stage = stageDef(state.stage);
-  const tier = tierOf(state.stage);
+  const campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, state.campaignNumber));
+  const tier = campaignTier(campaignNumber);
   const gap = GAP[tier];
   const totalDays = gap * CHECKPOINTS;
   const checkpointDays: number[] = [];
@@ -267,7 +276,7 @@ export function beginCampaign(
 
   const dungeon: Dungeon = { ...toDungeon(state), lordLevel: Math.max(state.lordLevel, stage.lordLevel) };
   const level = Math.max(record.level, stage.heroLevel);
-  const world = composeModifiers(activeEffects(state.world), CAMPAIGN_CLAMP);
+  const world = composeModifiers([...activeEffects(state.world), familyEffect(campaignNumber)], CAMPAIGN_CLAMP);
   const seed = Math.floor(rng() * 0xffffffff) >>> 0;
   const seedBase = 'camp' + seed.toString(36);
 
@@ -275,6 +284,7 @@ export function beginCampaign(
     shape: CAMPAIGN_SHAPE,
     seed,
     setup: {
+      campaignNumber,
       tier,
       gap,
       totalDays,
@@ -371,6 +381,13 @@ export function endCampaign(
     }
   };
 
+  const n = camp.setup.campaignNumber;
+  next.bestDaysByCampaign = {
+    ...state.bestDaysByCampaign,
+    [n]: Math.max(state.bestDaysByCampaign[n] || 0, camp.day)
+  };
+  if (outcome === 'dungeonWin') next.campaignNumber = Math.min(CAMPAIGN_MAX, n + 1);
+
   if (outcome !== 'heroVictory') {
     next.maxStageCleared = Math.max(state.maxStageCleared, state.stage);
     if (state.stage < STAGE_MAX) next.stage = state.stage + 1;
@@ -387,6 +404,8 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   if (!setup || typeof setup !== 'object') return null;
   if (!Array.isArray(setup.checkpointDays) || setup.checkpointDays.length !== CHECKPOINTS) return null;
   if (typeof setup.totalDays !== 'number' || setup.totalDays < CHECKPOINTS) return null;
+  if (typeof setup.campaignNumber !== 'number' || setup.campaignNumber < 1 || setup.campaignNumber > CAMPAIGN_MAX)
+    return null;
   if (!setup.dungeon || !Array.isArray(setup.dungeon.rooms)) return null;
   if (typeof e.day !== 'number' || e.day < 1 || e.day > setup.totalDays + 1) return null;
   if (!Array.isArray(e.party) || e.party.length === 0) return null;
@@ -413,7 +432,7 @@ export interface Intel {
 
 export function campaignIntel(state: GameState, arthurDefId: string): Intel {
   const stage = stageDef(state.stage);
-  const tier = tierOf(state.stage);
+  const tier = campaignTier(state.campaignNumber);
   const gap = GAP[tier];
   const pool = (stage.heroPool.length > 0 ? stage.heroPool : HEROES.map((h) => h.id)).map((id) => {
     const d = heroDef(id);
