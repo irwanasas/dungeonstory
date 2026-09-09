@@ -100,7 +100,6 @@ export default function GameShell() {
   }
 
   const stage = stageDef(state.stage);
-  const tier = state.mode === 'arcade' ? state.wave : state.stage;
   const filled = state.rooms.filter((r) => r.kind !== 'empty').length;
 
   function place(slot: RoomSlot) {
@@ -167,16 +166,20 @@ export default function GameShell() {
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
   }
 
-  async function startRaid() {
-    if (busy || !state || !raider) return;
+  async function startRaid(mode: GameState['mode']) {
+    if (locked || !state || !raider) return;
     startAmbient();
     sfx('door');
 
-    const heroLevel = state.mode === 'arcade' ? 1 + Math.floor((state.wave - 1) / 2) : stage.heroLevel;
-    const record: HeroRecord = { ...raider, level: Math.max(raider.level, heroLevel) };
-    const lordLevel =
-      state.mode === 'arcade' ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
+    const arcade = mode === 'arcade';
+    // The hero pool is mode-dependent, so draw for the mode being started
+    // rather than the one the save is still in.
+    const drawn = mode === state.mode ? raider : rollRaider({ ...state, mode });
+    const heroLevel = arcade ? 1 + Math.floor((state.wave - 1) / 2) : stage.heroLevel;
+    const record: HeroRecord = { ...drawn, level: Math.max(drawn.level, heroLevel) };
+    const lordLevel = arcade ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
     const dungeon = { ...toDungeon(state), lordLevel };
+    const tier = arcade ? state.wave : state.stage;
     const raidResult = simulateRaid(dungeon, record, tier, { world: worldModifiers(state.world) });
 
     setStepping(true);
@@ -188,15 +191,15 @@ export default function GameShell() {
     setBattleStep(false);
     setStepping(false);
 
-    const turned = tickWorld(state.world, state.mode === 'arcade' ? MIN_WORLD_STAGE : state.stage, systemRng);
-    const cleared = state.mode === 'rush' && raidResult.outcome === 'dungeonWin' && state.stage > state.maxStageCleared;
+    const turned = tickWorld(state.world, arcade ? MIN_WORLD_STAGE : state.stage, systemRng);
+    const cleared = !arcade && raidResult.outcome === 'dungeonWin' && state.stage > state.maxStageCleared;
 
     update((s) => {
       const roster = absorbResult(s.roster, record, raidResult);
       const hero = roster[0];
       const earned = [
         ...trophiesFrom(raidResult.events),
-        ...(s.mode === 'rush' ? challengesFrom(dungeon, s.stage, raidResult) : [])
+        ...(arcade ? [] : challengesFrom(dungeon, s.stage, raidResult))
       ].filter((id) => !s.unlockedMilestones.includes(id));
       const fame = legacyFrom(hero, raidResult)
         .filter((id) => !s.hallOfFame.some((e) => e.uid === hero.uid && e.milestoneId === id))
@@ -210,6 +213,7 @@ export default function GameShell() {
 
       const next: GameState = {
         ...s,
+        mode,
         world: turned.world,
         gold: s.gold + raidResult.gold,
         souls: s.souls + raidResult.souls + challengeSouls(earned),
@@ -226,7 +230,7 @@ export default function GameShell() {
           goldStolen: s.stats.goldStolen + raidResult.goldStolen
         }
       };
-      if (s.mode === 'rush') {
+      if (!arcade) {
         if (raidResult.outcome === 'dungeonWin') {
           next.maxStageCleared = Math.max(s.maxStageCleared, s.stage);
           if (s.stage < STAGE_MAX) next.stage = s.stage + 1;
@@ -455,8 +459,11 @@ export default function GameShell() {
         <div className="stub">
           <span className="stub-title">Explore</span>
           <p className="stub-note">One hero, five rooms, settled in a single pass.</p>
-          <button className="modal-btn btn" onClick={startRaid} disabled={locked}>
+          <button className="modal-btn btn" onClick={() => startRaid('rush')} disabled={locked}>
             Rush
+          </button>
+          <button className="modal-btn btn" onClick={() => startRaid('arcade')} disabled={locked}>
+            Arcade — wave {state.wave}
           </button>
         </div>
       )}

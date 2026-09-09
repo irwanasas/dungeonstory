@@ -40,7 +40,15 @@ export function useGameState() {
   const [offline, setOffline] = useState<OfflineReport | null>(null);
 
   const rollRaider = useCallback((s: GameState) => {
-    setRaider(pickRaider(s.roster, heroPoolOf(s), stageDef(s.stage).heroLevel, systemRng, worldModifiers(s.world).heroBias));
+    const next = pickRaider(
+      s.roster,
+      heroPoolOf(s),
+      stageDef(s.stage).heroLevel,
+      systemRng,
+      worldModifiers(s.world).heroBias
+    );
+    setRaider(next);
+    return next;
   }, []);
 
   useEffect(() => {

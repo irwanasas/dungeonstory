@@ -159,7 +159,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   );
   while (rooms.length < EDITABLE_ROOMS) rooms.push({ kind: 'empty' });
   merged.version = SAVE_VERSION;
-  merged.mode = 'rush';
+  merged.mode = saved.mode === 'arcade' ? 'arcade' : 'rush';
   merged.campaign = normalizeCampaign(saved.campaign);
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
