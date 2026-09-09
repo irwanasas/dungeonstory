@@ -32,11 +32,11 @@ export function IntelSheet({ open, intel, guardianId, onPick, onStart, onClose }
                 {intel.pool.length} classes · waves of {intel.waveSize}
               </span>
             </div>
-            <div className="day-party">
+            <div className="intel-pool">
               {intel.pool.map((h) => (
-                <span key={h.defId} className="day-hero">
+                <span key={h.defId} className="intel-hero">
                   {h.name}
-                  <span className="day-hero-hp">{h.role}</span>
+                  <span className="intel-hero-role">{h.role}</span>
                 </span>
               ))}
             </div>

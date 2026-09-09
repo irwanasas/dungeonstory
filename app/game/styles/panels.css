@@ -58,9 +58,33 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+.intel-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 2px 4px 4px;
+}
+
+.intel-hero {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.intel-hero-role {
+  font-size: 9px;
+  letter-spacing: normal;
+  color: var(--muted);
 }
 .sheet-group {
   font-family: var(--pixel);
