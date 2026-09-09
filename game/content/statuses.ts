@@ -35,12 +35,23 @@ const STATUSES: Record<StatusKind, StatusDef> = {
     tags: ['fire'],
     desc: 'Heavy damage over time, and no wound closes while it burns. Frost puts it out.'
   },
+  bleed: {
+    ...base(),
+    kind: 'bleed',
+    name: 'Bleeding',
+    short: 'BLD',
+    duration: 3,
+    dmgPerTick: 4,
+    tags: ['physical'],
+    desc: 'An open wound. Loses health every round until it closes.'
+  },
   chill: {
     ...base(),
     kind: 'chill',
     name: 'Chilled',
     short: 'CHL',
-    duration: 2,
+    duration: 3,
+    dmgPerTick: 3,
     evasionDelta: -0.28,
     defMult: 0.8,
     tags: ['frost'],

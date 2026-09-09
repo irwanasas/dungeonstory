@@ -31,8 +31,8 @@ export function DayPanel({ exp, busy, onNextDay, onChoose, onFinish }: DayPanelP
         </span>
       </div>
 
-      <div className="day-title">{exp.dayTitle}</div>
-      <div className="day-body">{exp.dayBody}</div>
+      <div className="day-title">{pending ? pending.title : exp.dayTitle}</div>
+      <div className="day-body">{pending ? pending.body : exp.dayBody}</div>
 
       {aura && <div className="day-aura">{aura.label}</div>}
 

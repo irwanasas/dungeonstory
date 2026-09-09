@@ -187,17 +187,24 @@ export interface IncomingHit {
   ignoreEvasion?: boolean;
 }
 
+export interface HitResult {
+  dmg: number;
+  evaded: boolean;
+  interaction: string | null;
+  applied: StatusKind | null;
+}
+
 export function resolveHit(
   hero: HeroInstance,
   def: HeroDef,
   hit: IncomingHit,
   rng: Rng,
   out: RaidEvent[]
-): { dmg: number; evaded: boolean } {
+): HitResult {
   const evaded = !hit.ignoreEvasion && rng() < evasionOf(hero, def);
   if (evaded) {
     out.push({ t: 'damage', source: hit.source, tag: hit.tag, dmg: 0, evaded: true, heroHp: hero.hp, heroMaxHp: hero.maxHp });
-    return { dmg: 0, evaded: true };
+    return { dmg: 0, evaded: true, interaction: null, applied: null };
   }
 
   let dmg = hit.amount;
@@ -221,10 +228,14 @@ export function resolveHit(
 
   out.push({ t: 'damage', source: hit.source, tag: hit.tag, dmg, evaded: false, heroHp: hero.hp, heroMaxHp: hero.maxHp });
 
-  if (hit.applies) applyStatus(hero, hit.applies.kind, hit.applies.days, def, out);
+  let applied: StatusKind | null = null;
+  if (hit.applies) {
+    applyStatus(hero, hit.applies.kind, hit.applies.days, def, out);
+    if (hasStatus(hero, hit.applies.kind)) applied = hit.applies.kind;
+  }
   if (extra) applyStatus(hero, extra, statusDef(extra).duration, def, out, inter && inter.id === 'poison-stack' ? 1.5 : 1);
 
-  return { dmg, evaded: false };
+  return { dmg, evaded: false, interaction: inter ? inter.id : null, applied };
 }
 
 export function heal(hero: HeroInstance, amount: number, out: RaidEvent[]): void {

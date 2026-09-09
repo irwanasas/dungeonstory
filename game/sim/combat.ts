@@ -10,7 +10,17 @@ import type {
 } from '../types';
 import { LORD } from '../content/monsters';
 import type { LordWeapon } from '../content/lordWeapons';
-import { atkMultOf, defMultOf, heal, resolveHit, tickStatusDamage, traitBlocked } from './hero';
+import {
+  atkMultOf,
+  atkMultOfList,
+  defMultOf,
+  defMultOfList,
+  heal,
+  resolveHit,
+  tickStatusDamage,
+  traitBlocked
+} from './hero';
+import { statusDef } from '../content/statuses';
 import { hpPct, tryAbility } from './ai';
 import type { Rng } from './rng';
 
@@ -120,12 +130,24 @@ export function tagMult(world: WorldModifiers, tag: Tag): number {
 const alive = (m: Combatant) => m.hero.hp > 0;
 const standing = (f: Foe) => f.hp > 0;
 
+export function tickFoeStatus(foe: Foe, out: RaidEvent[], tagSlot: boolean): void {
+  for (const s of foe.status) {
+    const def = statusDef(s.kind);
+    const dmg = Math.round(def.dmgPerTick * s.potency);
+    if (dmg <= 0) continue;
+    foe.hp = Math.max(0, foe.hp - dmg);
+    out.push({ t: 'statusTick', kind: s.kind, dmg, heroHp: foe.hp, ...(tagSlot ? { slot: foe.slot } : {}) });
+    if (foe.hp <= 0) break;
+  }
+}
+
 function foeStrike(ctx: PartyCtx, foe: Foe, target: Combatant, tagSlot: boolean): void {
   ctx.out.push({ t: 'enemyWindup', ranged: foe.ranged, ...(tagSlot ? { slot: foe.slot } : {}) });
   for (let hit = 0; hit < foe.hitsPerRound; hit++) {
     if (target.hero.hp <= 0) return;
     const armour = target.hero.def * defMultOf(target.hero) * (1 - foe.defPierce);
-    const raw = Math.max(1, foe.atk - armour * 0.5) * tagMult(ctx.world, foe.tag);
+    const atk = foe.atk * atkMultOfList(foe.status);
+    const raw = Math.max(1, atk - armour * 0.5) * tagMult(ctx.world, foe.tag);
     const res = resolveHit(
       target.hero,
       target.def,
@@ -147,7 +169,7 @@ function memberStrike(ctx: PartyCtx, m: Combatant, foe: Foe, round: number, tagS
   const crit = round === 0 && m.def.burst > 1 && !traitBlocked(m.hero, 'burst');
   if (crit) dmg *= m.def.burst;
   if (!traitBlocked(m.hero, 'ramp')) dmg *= 1 + Math.min(m.def.rampCap, m.def.rampPerRound * round);
-  dmg = Math.max(1, Math.round(dmg - foe.def));
+  dmg = Math.max(1, Math.round(dmg - foe.def * defMultOfList(foe.status)));
   if (miss) dmg = 0;
   foe.hp = Math.max(0, foe.hp - dmg);
   ctx.out.push({
@@ -215,6 +237,15 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
       reportDown(i);
     }
     if (!anyAlive()) return { wiped: true, foesDead: false, stalled: false };
+
+    for (const foe of foes) {
+      if (!standing(foe)) continue;
+      tickFoeStatus(foe, ctx.out, multiFoe);
+      if (foe.hp <= 0 && foe.source === 'monster') {
+        ctx.out.push({ t: 'monsterDown', monsterId: foe.id, ...(multiFoe ? { slot: foe.slot } : {}) });
+      }
+    }
+    if (!anyStanding()) return { wiped: false, foesDead: true, stalled: false };
 
     for (let i = 0; i < ctx.members.length; i++) {
       const m = ctx.members[i];

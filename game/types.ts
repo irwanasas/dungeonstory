@@ -3,6 +3,7 @@ export type Tag = 'physical' | 'fire' | 'poison' | 'frost' | 'arcane' | 'oil' | 
 export type StatusKind =
   | 'poison'
   | 'burn'
+  | 'bleed'
   | 'chill'
   | 'weaken'
   | 'oiled'

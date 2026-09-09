@@ -7,8 +7,8 @@ export const TRAPS: TrapDef[] = [
     tag: 'physical',
     damage: 14,
     dmgPerLevel: 3,
-    applies: null,
-    desc: 'One hard burst the moment they step in. Kills fragile heroes before their plan begins.',
+    applies: { kind: 'bleed', days: 3 },
+    desc: 'One hard burst the moment they step in, and the wound keeps bleeding after.',
     goldCost: 12
   },
   {
@@ -37,7 +37,7 @@ export const TRAPS: TrapDef[] = [
     tag: 'frost',
     damage: 7,
     dmgPerLevel: 1.5,
-    applies: { kind: 'chill', days: 2 },
+    applies: { kind: 'chill', days: 3 },
     desc: 'Chills them: dodge collapses and armour thins. Set up anything that swings.',
     goldCost: 16
   }

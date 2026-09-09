@@ -16,6 +16,7 @@ import { lordWeapon } from '../content/lordWeapons';
 import { trapDef } from '../content/traps';
 import { treasureDef } from '../content/treasure';
 import { resolveHit, tickStatusDamage } from './hero';
+import { statusDef } from '../content/statuses';
 import { decideDisarm, decideLoot, lootNote } from './ai';
 import {
   fightGroup,
@@ -37,7 +38,7 @@ export interface CombatMember {
 export interface ProcOffer {
   trapId: string;
   kind: StatusKind;
-  memberIndex: number;
+  uid: string;
 }
 
 export interface CheckpointInput {
@@ -213,6 +214,9 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
         const res = resolveHit(m.hero, m.def, { amount, tag: td.tag, source: 'trap', applies: td.applies }, rng, out);
         out.push({ t: 'reaction', kind: res.evaded ? 'surprise' : res.dmg > 0 ? 'pain' : 'surprise' });
         if (m.hero.hp <= 0) m.killedByTag = td.tag;
+        else if (!res.interaction && res.applied && statusDef(res.applied).dmgPerTick > 0) {
+          result.procs.push({ trapId: td.id, kind: res.applied, uid: m.hero.uid });
+        }
         reportDown(i);
       }
       if (living().length === 0) {

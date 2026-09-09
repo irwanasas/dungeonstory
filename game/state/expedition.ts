@@ -19,7 +19,7 @@ import type {
   WorldState
 } from '../types';
 import { CHECKPOINTS, EDITABLE_ROOMS, FAME_MAX } from '../types';
-import { DAY_EVENTS, dayEvent } from '../content/dayEvents';
+import { DAY_EVENTS, dayEvent, procFlavour } from '../content/dayEvents';
 import { INTERACTIONS } from '../content/interactions';
 import { MONSTERS, monsterDef } from '../content/monsters';
 import { trapDef } from '../content/traps';
@@ -40,14 +40,14 @@ import {
   tickStatusDamage
 } from '../sim/hero';
 import { fleeNote, wantsToFlee } from '../sim/ai';
-import { runCheckpoint } from '../sim/checkpoint';
+import { runCheckpoint, type ProcOffer } from '../sim/checkpoint';
 import { seeded, type Rng } from '../sim/rng';
 import { checkpointReward, toDungeon } from './economy';
 import { absorbResult } from './roster';
 import { composeModifiers, activeEffects, tickWorld, EXPEDITION_CLAMP } from './world';
 import type { GameState } from './save';
 
-export const EXPEDITION_SHAPE = 2;
+export const EXPEDITION_SHAPE = 3;
 
 const GAP: Record<ExpTier, number> = { early: 3, mid: 4, late: 5 };
 
@@ -87,6 +87,7 @@ export interface PendingChoice {
   title: string;
   body: string;
   options: { id: string; label: string; hint: string }[];
+  proc?: { kind: StatusKind; uid: string; trapId: string };
 }
 
 export interface ExpLogEntry {
@@ -342,7 +343,8 @@ export function normalizeExpedition(input: unknown): ExpeditionState | null {
   if (!Array.isArray(e.monsters) || e.monsters.length !== EDITABLE_ROOMS + 1) return null;
   if (e.status !== 'active' && e.status !== 'complete') return null;
   if (e.pending && (!Array.isArray(e.pending.options) || e.pending.options.length === 0)) return null;
-  if (e.pending && !dayEvent(e.pending.eventId)) return null;
+  if (e.pending && e.pending.kind !== 'proc' && !dayEvent(e.pending.eventId)) return null;
+  if (e.pending && e.pending.kind === 'proc' && !e.pending.proc) return null;
   for (const m of e.party) {
     if (!m || !m.hero || typeof m.hero.hp !== 'number' || !Array.isArray(m.hero.status)) return null;
   }
@@ -608,6 +610,27 @@ export function advanceDay(exp: ExpeditionState, world: WorldState): DayOutcome 
   return { exp: next, events: out };
 }
 
+function queueProc(exp: ExpeditionState, procs: ProcOffer[]): void {
+  if (exp.pending || procs.length === 0) return;
+  const offer = procs.find((o) => {
+    const m = exp.party.find((x) => x.hero.uid === o.uid);
+    return m && m.hero.hp > 0 && m.hero.status.some((s) => s.kind === o.kind);
+  });
+  if (!offer) return;
+  const f = procFlavour(offer.trapId);
+  exp.pending = {
+    eventId: 'proc:' + offer.trapId,
+    kind: 'proc',
+    title: f.title,
+    body: f.body,
+    options: [
+      { id: 'amp', label: f.amp.label, hint: f.amp.hint },
+      { id: 'longer', label: f.longer.label, hint: f.longer.hint }
+    ],
+    proc: { kind: offer.kind, uid: offer.uid, trapId: offer.trapId }
+  };
+}
+
 function resolveDayEvent(exp: ExpeditionState, out: RaidEvent[]): void {
   if (exp.backupPending) {
     exp.backupPending = false;
@@ -643,6 +666,29 @@ function resolveDayEvent(exp: ExpeditionState, out: RaidEvent[]): void {
 
 export function commitChoice(exp: ExpeditionState, optionId: string, world: WorldState): DayOutcome {
   if (exp.status !== 'active' || !exp.pending) return { exp, events: [] };
+
+  if (exp.pending.kind === 'proc') {
+    const proc = exp.pending.proc;
+    if (!proc || (optionId !== 'amp' && optionId !== 'longer')) return { exp, events: [] };
+    const next: ExpeditionState = {
+      ...exp,
+      party: exp.party.map((m) => ({ ...m, hero: { ...m.hero, status: m.hero.status.map((s) => ({ ...s })) } })),
+      log: exp.log.slice()
+    };
+    const member = next.party.find((m) => m.hero.uid === proc.uid);
+    const active = member ? member.hero.status.find((s) => s.kind === proc.kind) : undefined;
+    if (active) {
+      if (optionId === 'amp') active.potency *= 1.6;
+      else active.ticksLeft += 2;
+    }
+    const f = procFlavour(proc.trapId);
+    const chosen = optionId === 'amp' ? f.amp : f.longer;
+    next.pending = null;
+    next.dayBody = `${next.dayBody}\n\n${chosen.hint}`;
+    next.log.push({ day: next.day, kind: 'proc:' + proc.trapId, text: `${chosen.label}.` });
+    return { exp: next, events: [] };
+  }
+
   const e = dayEvent(exp.pending.eventId);
   const option = e ? e.options.find((o) => o.id === optionId) : null;
   if (!e || !option) return { exp, events: [] };
@@ -747,6 +793,7 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
   }
 
   if (res.stalled) {
+    queueProc(exp, res.procs);
     out.push({ t: 'stalled', room: roomIndex });
     exp.dayTitle = 'A Long Standoff';
     exp.dayBody = `Neither side breaks in ${label}. The party pulls back to try again.`;
@@ -765,6 +812,8 @@ function resolveCheckpoint(exp: ExpeditionState, mods: WorldModifiers, out: Raid
     finish(exp, 'heroVictory');
     return;
   }
+
+  queueProc(exp, res.procs);
 
   exp.dayTitle = `${label} Falls`;
   exp.dayBody =

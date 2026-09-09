@@ -463,3 +463,48 @@ export const DAY_EVENTS: DayEvent[] = [
 export function dayEvent(id: string): DayEvent | null {
   return DAY_EVENTS.find((e) => e.id === id) || null;
 }
+
+export interface ProcFlavour {
+  title: string;
+  body: string;
+  amp: { label: string; hint: string };
+  longer: { label: string; hint: string };
+}
+
+const PROC_FALLBACK: ProcFlavour = {
+  title: 'The Wound Turns',
+  body: 'What your room left in them is still working. It could be made worse, or made to last.',
+  amp: { label: 'Make it bite deeper', hint: 'Each tick hurts more, over the same days.' },
+  longer: { label: 'Make it last longer', hint: 'Same bite, two more days of it.' }
+};
+
+const PROC_FLAVOUR: Record<string, ProcFlavour> = {
+  spike: {
+    title: 'The Wound Festers',
+    body: 'The gash from your spikes has not closed. Something is getting into it.',
+    amp: { label: 'Infection', hint: 'The bleeding runs harder for the same three days.' },
+    longer: { label: 'It will not close', hint: 'The same slow bleed, two days further down the road.' }
+  },
+  poison: {
+    title: 'The Toxin Settles',
+    body: 'Your gas is in their lungs and has not finished with them.',
+    amp: { label: 'Concentrate it', hint: 'Every tick of poison bites harder.' },
+    longer: { label: 'Let it linger', hint: 'The poison follows them two more days.' }
+  },
+  fire: {
+    title: 'The Fire Takes Hold',
+    body: 'They put the flames out. The burn underneath is another matter.',
+    amp: { label: 'Flare', hint: 'The burn sears harder each round.' },
+    longer: { label: 'Smoulder', hint: 'It keeps burning for two more days.' }
+  },
+  frost: {
+    title: 'The Cold Sinks In',
+    body: 'The chill is past their armour and into the joints.',
+    amp: { label: 'Deep freeze', hint: 'The cold cuts harder every round.' },
+    longer: { label: 'Lingering frost', hint: 'Two more days of stiff hands and thin armour.' }
+  }
+};
+
+export function procFlavour(trapId: string): ProcFlavour {
+  return PROC_FLAVOUR[trapId] || PROC_FALLBACK;
+}
