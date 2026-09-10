@@ -70,7 +70,7 @@ export default function GameShell() {
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
   const [equipTab, setEquipTab] = useState<'rooms' | 'upgrades'>('rooms');
-  const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
+  const [arthur, setArthur] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
@@ -222,7 +222,7 @@ export default function GameShell() {
 
   function openIntel() {
     if (locked || !state) return;
-    setArthur(HEROES[Math.floor(Math.random() * HEROES.length)].id);
+    if (arthur === null) setArthur(HEROES[Math.floor(Math.random() * HEROES.length)].id);
     setSheet('intel');
     sfx('tap');
   }
@@ -234,7 +234,8 @@ export default function GameShell() {
     setSheet(null);
     if (state.tutorial === 2) advanceTutorial(2);
     const chosen = state.guardianId;
-    const king = arthur;
+    const king = arthur || HEROES[Math.floor(Math.random() * HEROES.length)].id;
+    setArthur(null);
     update((s) => {
       const camp = beginCampaign(s, raider, systemRng, chosen);
       camp.setup.arthurDefId = king;
@@ -485,7 +486,7 @@ export default function GameShell() {
 
       <IntelSheet
         open={sheet === 'intel'}
-        intel={campaignIntel(state, arthur)}
+        intel={arthur ? campaignIntel(state, arthur) : null}
         guardianId={state.guardianId}
         onStart={startCampaign}
         onClose={closeSheet}
