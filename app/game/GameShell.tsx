@@ -4,12 +4,10 @@ import { useCallback, useRef, useState } from 'react';
 import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
-import { legacyFrom, trophiesFrom } from '../../game/content/milestones';
-import { challengeSouls, challengesFrom } from '../../game/content/challenges';
 import { toDungeon, unlockSoulCost } from '../../game/state/economy';
 import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
-import { FAME_MAX, canPlace, unlockedFor, type GameState } from '../../game/state/save';
-import { absorbResult } from '../../game/state/roster';
+import { canPlace, unlockedFor, type GameState } from '../../game/state/save';
+import { settleRaid, stageCleared as didClearStage } from '../../game/state/raidOutcome';
 import {
   activeParty,
   advanceDay,
@@ -193,58 +191,9 @@ export default function GameShell() {
     setStepping(false);
 
     const turned = tickWorld(state.world, arcade ? MIN_WORLD_STAGE : state.stage, systemRng);
-    const cleared = !arcade && raidResult.outcome === 'dungeonWin' && state.stage > state.maxStageCleared;
-
-    update((s) => {
-      const roster = absorbResult(s.roster, record, raidResult);
-      const hero = roster[0];
-      const earned = [
-        ...trophiesFrom(raidResult.events),
-        ...(arcade ? [] : challengesFrom(dungeon, s.stage, raidResult))
-      ].filter((id) => !s.unlockedMilestones.includes(id));
-      const fame = legacyFrom(hero, raidResult)
-        .filter((id) => !s.hallOfFame.some((e) => e.uid === hero.uid && e.milestoneId === id))
-        .map((id) => ({
-          uid: hero.uid,
-          heroName: hero.name,
-          title: hero.title,
-          milestoneId: id,
-          achievedAt: Date.now()
-        }));
-
-      const next: GameState = {
-        ...s,
-        mode,
-        world: turned.world,
-        gold: s.gold + raidResult.gold,
-        souls: s.souls + raidResult.souls + challengeSouls(earned),
-        roster,
-        unlockedMilestones: [...s.unlockedMilestones, ...earned],
-        hallOfFame: [...fame, ...s.hallOfFame].slice(0, FAME_MAX),
-        stats: {
-          ...s.stats,
-          raids: s.stats.raids + 1,
-          defeated: s.stats.defeated + (raidResult.outcome === 'dungeonWin' ? 1 : 0),
-          escaped: s.stats.escaped + (raidResult.outcome === 'heroEscape' ? 1 : 0),
-          lost: s.stats.lost + (raidResult.outcome === 'heroVictory' ? 1 : 0),
-          goldEarned: s.stats.goldEarned + raidResult.gold,
-          goldStolen: s.stats.goldStolen + raidResult.goldStolen
-        }
-      };
-      if (!arcade) {
-        if (raidResult.outcome === 'dungeonWin') {
-          next.maxStageCleared = Math.max(s.maxStageCleared, s.stage);
-          if (s.stage < STAGE_MAX) next.stage = s.stage + 1;
-          next.unlocked = [...new Set([...unlockedFor(next.stage), ...next.bought])];
-        }
-      } else if (raidResult.outcome === 'dungeonWin') {
-        next.bestWave = Math.max(s.bestWave, s.wave);
-        next.wave = s.wave + 1;
-      } else {
-        next.wave = 1;
-      }
-      return next;
-    });
+    const settlement = { mode, record, dungeon, result: raidResult, world: turned.world };
+    const cleared = didClearStage(state, settlement);
+    update((cur) => settleRaid(cur, settlement));
 
     setResult(raidResult);
     setStageCleared(cleared);
