@@ -453,11 +453,6 @@ a.row.link {
 .codex-tag.good { color: var(--moss-lit); }
 .codex-tag.bad { color: var(--ember-lit); }
 
-@media (max-height: 700px) {
-  .raid { height: 58px; }
-  .teaser { min-height: 36px; }
-}
-
 .equip {
   flex: 1 1 auto;
   min-height: 0;

@@ -497,39 +497,6 @@
   white-space: nowrap;
 }
 
-.bottom {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 6px 14px 12px;
-}
-.raid {
-  flex: 1;
-  max-width: 210px;
-  height: 68px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-family: var(--pixel);
-  font-size: 14px;
-  color: var(--gold-lit);
-  text-shadow: 0 2px 0 #000;
-}
-.raid img {
-  width: 30px;
-  height: 30px;
-}
-.raid:not(:disabled) {
-  animation: breathe 2.6s ease-in-out infinite;
-}
-@keyframes breathe {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.18); }
-}
-
 .speed {
   position: absolute;
   right: 10px;
