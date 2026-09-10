@@ -67,8 +67,23 @@ Once assumptions are stated (Section 1) and the plan is set, act on it with high
 ## 5. No Comments, Short Summaries
 
 - Do not write code comments. Write plain code only.
-- After finishing a task, respond with a short summary — only the critical info, nothing else.
 - Commit and push directly to `main`. Do not create branches.
+
+**Summaries are short. Always.** No long reports, no phase recaps, no tables of
+what was verified, no restating the request.
+
+Include only:
+- What changed, in a line or two.
+- Anything that needs my attention: a decision I have to make, a spec that
+  contradicts itself, a result that disagrees with what I asked for, a
+  correctness or data-loss risk.
+
+Strip everything else — verification detail I didn't ask for, measurements that
+confirm the expected, lists of files touched, what was left alone, closing
+recaps. If I want depth I will ask.
+
+Never pad the "needs attention" part to look thorough, and never drop it to
+look brief.
 
 ---
 
