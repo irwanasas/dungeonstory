@@ -5,7 +5,7 @@ import { heroDef } from '../../game/content/heroes';
 import { LORD, monsterDef } from '../../game/content/monsters';
 import { trapDef } from '../../game/content/traps';
 import type { OfflineReport } from '../../game/sim/offline';
-import { ICON, heroArt } from './art';
+import { ICON } from './art';
 
 export const OUTCOME_COPY: Record<Outcome, { title: string; desc: string; cls: string }> = {
   dungeonWin: {
@@ -190,51 +190,6 @@ export function Coach({ step, hidden }: { step: number; hidden: boolean }) {
           <span className="coach-text">{item.text}</span>
         </div>
       )}
-    </div>
-  );
-}
-
-export function HeroTeaser({
-  defId,
-  name,
-  title,
-  note,
-  raiding,
-  status
-}: {
-  defId: string;
-  name: string;
-  title: string;
-  note: string | null;
-  raiding: boolean;
-  status: string;
-}) {
-  const def = heroDef(defId);
-  if (raiding) {
-    return (
-      <div className="teaser">
-        <img src={heroArt(defId)} alt="" />
-        <div className="teaser-body">
-          <div className="teaser-name">
-            {name} {title}
-          </div>
-          <div className="teaser-note">{status}</div>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="teaser">
-      <img src={heroArt(defId)} alt="" />
-      <div className="teaser-body">
-        <div className="teaser-name">
-          {name} {title} &middot; {def.name}
-        </div>
-        <div className="teaser-note">
-          {note ? <span className="teaser-scar">{note} </span> : null}
-          {def.strengths}
-        </div>
-      </div>
     </div>
   );
 }

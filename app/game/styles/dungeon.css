@@ -497,41 +497,6 @@
   white-space: nowrap;
 }
 
-.teaser {
-  flex: 0 0 auto;
-  margin: 0 12px 4px;
-  padding: 6px 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(10, 14, 20, 0.7);
-  border-left: 3px solid var(--stone);
-  min-height: 42px;
-}
-.teaser img {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-}
-.teaser-body {
-  min-width: 0;
-  flex: 1;
-}
-.teaser-name {
-  font-family: var(--pixel);
-  font-size: 10px;
-  color: var(--bone);
-}
-.teaser-note {
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1.35;
-  margin-top: 2px;
-}
-.teaser-scar {
-  color: var(--ember-lit);
-}
-
 .bottom {
   flex: 0 0 auto;
   display: flex;
