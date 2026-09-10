@@ -2,7 +2,7 @@ import type { Outcome, WorldModifiers } from '../types';
 import type { GameState } from './save';
 
 export function upgradeCost(baseCost: number, level: number): number {
-  return Math.round(baseCost * 1.8 * Math.pow(1.5, level - 1));
+  return Math.round(baseCost * 1.8 * Math.pow(1.25, level - 1));
 }
 
 export function lordSoulCost(level: number): number {
