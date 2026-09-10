@@ -3,9 +3,9 @@
 A mobile-first browser game. You do not play the hero — you own the dungeon
 they walk into.
 
-Build five rooms, leave the Throne Room to Nekrokos, press RAID, and watch an
-autonomous hero try to get through. They decide what to fight, what to loot,
-and when to run. You only get to decide what is waiting for them.
+Build five rooms, leave the Throne Room to Nekrokos, send the heroes in, and
+watch them try to get through. They decide what to fight, what to loot, and
+when to run. You only get to decide what is waiting for them.
 
 Play: <https://irwanasas.github.io/ownadungeon/>
 
@@ -19,17 +19,18 @@ Throne Room; lose gold if they get through.
 
 ## How to play
 
-1. **Build** — tap Build and fill your rooms with traps, monsters, and
-   treasure. Each raid tests the layout you leave behind.
-2. **Raid** — press RAID. A hero enters and moves through your rooms on
-   their own, room by room, making their own choices.
-3. **Watch** — the raid plays out automatically with full combat animation.
-   You cannot intervene once it starts.
-4. **Reward** — when the raid ends you collect gold and souls based on how
-   far the hero got and how it ended.
-5. **Upgrade** — spend gold and souls to level up your rooms, your content,
-   and the Dungeon Lord himself.
-6. **Redesign** — go back to Build and rethink the layout for the next raid.
+1. **Build** — open the Rooms tab and fill your rooms with traps, monsters,
+   and treasure. Every run tests the layout you leave behind.
+2. **Send them in** — start a Campaign from the Campaign tab, or a one-off
+   Rush or Arcade run from Explore. Heroes move through your rooms on their
+   own, making their own choices.
+3. **Watch** — fights play out automatically with full combat animation. You
+   cannot intervene once one starts.
+4. **Reward** — you collect gold and souls based on how far they got and how
+   it ended.
+5. **Upgrade** — spend gold and souls on the Upgrades sub-tab to level your
+   content and the Dungeon Lord himself.
+6. **Redesign** — go back to Rooms and rethink the layout.
 
 ## Core gameplay loop
 
@@ -64,11 +65,11 @@ them) is the whole strategic layer:
 | Hero | Identity | Counter |
 | --- | --- | --- |
 | Paladin | Mitigates most direct hits, immune to fear | Poison and burn tick past his armour |
-| Berserker | Rages when badly wounded, never retreats | A Net stops him from raging |
-| Trickster | Dodges roughly half of everything, disarms traps | Chill or Net strips her dodge |
+| Berserker | Rages when badly wounded, never retreats | Bind him and the rage never starts |
+| Trickster | Dodges roughly half of everything, disarms traps | Chill or bind strips her dodge |
 | Assassin | Devastating opening strike, very fragile | Anything that survives the opener kills him |
 | Druid | Heals every round, shrugs off poison | Burning shuts her healing off |
-| Elementalist | Grows stronger every round of a fight | Kill him fast, or slow the ramp with a Net or a debuff |
+| Elementalist | Grows stronger every round of a fight | Kill him fast, or slow the ramp with a debuff |
 
 Heroes are named and remembered. They persist between raids, gain levels over
 time, and come back scarred by what killed them — a hero who nearly died to
@@ -94,17 +95,34 @@ ENTRANCE -> ROOM 1..5 (yours to design) -> THRONE ROOM (permanent)
 
 - **Gold** is earned from raids and spent leveling up the traps, monsters,
   and treasure you own.
-- **Souls** are the rarer currency, used to upgrade the Dungeon Lord and to
-  unlock content early, ahead of the stage that would normally grant it —
-  the further ahead you reach, the more it costs. Raids pay a few; mastery
-  challenges pay the rest.
-- **Stage mode** — 20 handcrafted stages, each one built around teaching or
-  testing a specific idea, with unlocks tied to progress.
-- **Arcade mode** — endless waves with escalating difficulty and a random
-  hero each time, for testing your dungeon without a script. Your best wave
-  is tracked.
+- **Souls** are the rarer currency, spent on the Dungeon Lord's level and his
+  weapons. Runs pay a few; mastery challenges pay the rest.
+- **Campaign** — the main mode. Ten campaigns, each a multi-day march to your
+  gate. See below.
+- **Rush** — one hero, five rooms plus the Throne, settled in a single pass.
+  Difficulty ramps across the 20 stages.
+- **Arcade** — endless waves with escalating difficulty and a random hero from
+  the full roster. Your best wave is tracked.
 - **Offline progress** — your dungeon keeps raiding while you're away, for up
   to 8 hours, and reports what happened when you return.
+
+## Campaign mode
+
+A campaign is not one raid — it's a march. Heroes take days to reach you, and
+the road does things to them before they arrive.
+
+- **Six checkpoints.** Each one is a fight at the next room in your dungeon.
+  Between them are narrative days: choices, altars, omens and ecosystem events
+  that leave the party blessed, cursed, oiled, chilled or bleeding.
+- **Ten campaigns.** Campaign number sets the length — 18 days for 1-3, 24 for
+  4-6, 30 for 7-10 — the party size (one hero for 1-3, two for 4-7, three for
+  8-10, three waves each) and which hero family leads the march, cycling
+  warriors, rogues, mages.
+- **King Arthur** arrives at the Throne. If your dungeon wipes the last wave
+  before it, he comes alone and hits twice as hard.
+- **Nekrokos's Guardian** is picked before the march and sets his kit for the
+  Throne fight. It cannot be changed once the gate opens.
+- Your best days-survived is kept per campaign number.
 
 ## Trophies, records and challenges
 
@@ -125,9 +143,9 @@ Three things are kept for you in the Codex, on top of the stage ladder.
   shape, or a hero who never touched your treasure. They're checked in Stage
   mode, and a few only open up from a later stage.
 
-## World Announcer / events
+## World events
 
-Every few raids, a herald brings news from outside your dungeon: rumours,
+Every few runs, a herald brings news from outside your dungeon: rumours,
 wars, plagues, discoveries, festivals, and other fantasy events. Some news is
 pure flavour. Other events temporarily change the rules for a handful of
 raids — a war might make warriors hit harder, a drought might make fire bite
@@ -137,22 +155,22 @@ into something else entirely.
 
 At most two effects are active at once, and every effect is temporary and
 capped, so the world nudges your strategy without ever locking you out of a
-raid. Open the World tab any time to see what's currently in effect and what
-has happened before.
+raid. Campaign day-events cover the same ground from inside a march.
 
 ## Controls
 
-- **Build** (bottom left) — open the build panel to place or change what's in
-  your rooms.
-- **RAID** (bottom center) — start a raid with your current layout.
-- **Upgrade** (bottom right) — spend gold and souls on upgrades.
-- **The World** (top left icon) — see active world events and past ones.
-- **Stage / Arcade** (top tabs) — switch between the two modes.
-- **Codex** (top icon) — three tabs: Dungeon (this stage's brief and your
-  trophies), Heroes (the archetypes, your veterans, the Hall of Fame), and
-  Challenges.
-- **Settings** (top right icon) — records, language, reset game, and credits.
-- Swipe or scroll left and right to look through your dungeon's rooms.
+Five tabs along the bottom:
+
+- **Shop** — placeholder for now.
+- **Rooms** — the room grid and your Dungeon Power, plus an Upgrades sub-tab
+  for the Lord, his weapons and your content levels.
+- **Campaign** — the campaign card and the start of a march.
+- **Talents** — placeholder for a future Nekrokos talent tree.
+- **Explore** — one-off Rush and Arcade runs.
+
+Along the top: an announcements slot on the left, Codex and Settings on the
+right. The Codex has three tabs — Dungeon, Heroes and Challenges. During a
+fight, swipe left and right to look through your rooms.
 
 ## Credits
 
@@ -162,3 +180,31 @@ Created by **xanaksetan**.
 - GitHub: <https://github.com/irwanasas>
 
 All Rights Reserved 2026.
+
+---
+
+## Version log
+
+| When (UTC) | Change |
+| --- | --- |
+| 2026-09-10 06:07 | Rush difficulty ramp raised to 1.8x across stages 1-20 |
+| 2026-09-10 05:49 | Campaign wave bands (1/2/3 heroes by campaign number, 3 waves capped), flee threshold capped at 10% HP |
+| 2026-09-10 05:38 | Upgrade cost curve flattened from x1.5 to x1.25 per level |
+| 2026-09-10 04:26 | `campaign.ts` split by responsibility; raid settlement moved out of `GameShell` |
+| 2026-09-10 04:07 | Dead code removed (hero teaser, `tierOf`, orphaned CSS); stat rows right-aligned |
+| 2026-09-09 21:06 | Campaign idle screen; campaigns 1-10 themed by hero family and day length |
+| 2026-09-09 14:19 | Explore tab with Rush, Arcade and Coming Soon panels |
+| 2026-09-09 14:14 | Arcade mode reactivated |
+| 2026-09-09 13:47 | Stage mode renamed Rush; single-pass raid restored |
+| 2026-09-09 13:31 | Build and Upgrade merged into one Rooms tab |
+| 2026-09-09 13:11 | Expedition renamed Campaign throughout |
+| 2026-09-09 13:02 | Five-tab bottom nav replaces the three-button bar; top bar reordered |
+| 2026-09-09 12:15 | Room placement moved to its own screen |
+| 2026-09-09 10:29 | Sheet panel overflow and text wrapping fixed |
+| 2026-09-09 06:17 | Expedition rework complete: King Arthur, Guardian kits, intel screen |
+| 2026-09-09 05:39 | Status ailment procs and ecosystem events |
+| 2026-09-09 05:04 | Squad combat, waves and tag knowledge |
+| 2026-09-09 04:47 | Day-event pool weighted by the room ahead |
+| 2026-09-09 04:35 | Expedition skeleton replaces the single-raid loop |
+| 2026-09-09 04:06 | Content and type restructure; Oil and Net traps retired |
+| 2026-09-08 22:15 | Initial project import |
