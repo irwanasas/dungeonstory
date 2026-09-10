@@ -227,6 +227,10 @@
 .stat:last-child {
   border-bottom: 0;
 }
+.stat-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .stat-value {
   font-family: var(--pixel);
   font-size: 10px;
