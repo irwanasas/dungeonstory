@@ -171,10 +171,13 @@ export interface CoachStep {
 }
 
 export const TUTORIAL: CoachStep[] = [
-  { text: 'This is your dungeon. Six rooms. Swipe across them, then tap a room to put something inside.', pos: 'mid' },
-  { text: 'Good. Fill another room or two — the order they meet things is the whole game.', pos: 'mid' },
+  { text: 'Open Rooms. Six slots wait there — tap an empty one and put something inside.', pos: 'mid' },
+  { text: 'Good. Fill another slot or two — the order they meet things is the whole game.', pos: 'mid' },
   { text: 'A campaign is forming. Start it, then walk the days with them until they reach your gate.', pos: 'low' },
-  { text: 'That was your dungeon working. Take what it earned.', pos: 'mid' },
+  {
+    text: 'They march in a squad, and every few days one reaches a room and fights. Hold six checkpoints and the Throne is the last: Nekrokos, his weapon, and the Guardian you set. Wipe the wave before it and King Arthur walks in alone, twice as dangerous.',
+    pos: 'high'
+  },
   { text: 'Gold makes your traps and monsters hurt more. Spend it.', pos: 'low' },
   { text: 'Now change the dungeon and run it again. The same heroes come back smarter.', pos: 'low' }
 ];

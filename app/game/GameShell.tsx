@@ -305,7 +305,7 @@ export default function GameShell() {
     if (state && state.tutorial === 5) advanceTutorial(5);
   }
 
-  const coachHidden = busy || sheet !== null || offline !== null || camp !== null;
+  const coachHidden = busy || battleMode || sheet !== null || offline !== null;
 
   return (
     <div className="app" style={artVars}>
