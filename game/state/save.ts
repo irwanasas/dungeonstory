@@ -5,6 +5,7 @@ import { normalizeCampaign } from './campaign';
 import { STAGES } from '../content/stages';
 import { TRAPS } from '../content/traps';
 import { MONSTERS } from '../content/monsters';
+import { GUARDIANS } from '../content/guardians';
 import { TREASURES } from '../content/treasure';
 import { defaultWorld, normalizeWorld } from './world';
 
@@ -49,6 +50,7 @@ export interface GameState {
   equippedLordWeapon: string;
   unlockedLordWeapons: string[];
   campaign: CampaignState | null;
+  guardianId: string;
   campaignNumber: number;
   bestDaysByCampaign: Record<number, number>;
 }
@@ -134,6 +136,7 @@ export function defaultState(): GameState {
     equippedLordWeapon: DEFAULT_LORD_WEAPON,
     unlockedLordWeapons: [DEFAULT_LORD_WEAPON],
     campaign: null,
+    guardianId: GUARDIANS[0].id,
     campaignNumber: 1,
     bestDaysByCampaign: {}
   };
@@ -165,6 +168,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   merged.version = SAVE_VERSION;
   merged.mode = saved.mode === 'arcade' ? 'arcade' : 'rush';
   merged.campaign = normalizeCampaign(saved.campaign);
+  merged.guardianId = GUARDIANS.some((g) => g.id === merged.guardianId) ? merged.guardianId : GUARDIANS[0].id;
   merged.campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, Math.floor(merged.campaignNumber) || 1));
   merged.bestDaysByCampaign =
     saved.bestDaysByCampaign && typeof saved.bestDaysByCampaign === 'object' ? { ...saved.bestDaysByCampaign } : {};

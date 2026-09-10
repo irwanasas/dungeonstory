@@ -1,20 +1,19 @@
 'use client';
 
-import { GUARDIANS } from '../../../game/content/guardians';
+import { guardianKit } from '../../../game/content/guardians';
 import type { Intel } from '../../../game/state/campaign';
-import { contentArt, heroArt } from '../art';
+import { heroArt } from '../art';
 import { Sheet } from './Sheet';
 
 interface IntelSheetProps {
   open: boolean;
   intel: Intel | null;
   guardianId: string;
-  onPick: (id: string) => void;
   onStart: () => void;
   onClose: () => void;
 }
 
-export function IntelSheet({ open, intel, guardianId, onPick, onStart, onClose }: IntelSheetProps) {
+export function IntelSheet({ open, intel, guardianId, onStart, onClose }: IntelSheetProps) {
   return (
     <Sheet open={open} title="Before They March" onClose={onClose}>
       {intel && (
@@ -61,29 +60,10 @@ export function IntelSheet({ open, intel, guardianId, onPick, onStart, onClose }
 
           <div className="sheet-group">
             <span className="sheet-title">Nekrokos&apos;s Guardian</span>
-            <p className="sheet-rule">Pick one. It sets his kit for the Throne fight and cannot be changed after.</p>
-            {GUARDIANS.map((g) => {
-              const on = g.id === guardianId;
-              return (
-                <button
-                  key={g.id}
-                  className={'row inset' + (on ? ' danger' : '')}
-                  onClick={() => onPick(g.id)}
-                  aria-pressed={on}
-                >
-                  <img src={contentArt('monster', g.id)} alt="" />
-                  <div className="row-body">
-                    <span className="row-name">
-                      {g.name}
-                      {g.count > 1 && <span className="row-lvl"> x{g.count}</span>}
-                    </span>
-                    <span className="row-desc">{g.effect}</span>
-                    <span className="row-hint quiet">Counters: {g.counters}</span>
-                  </div>
-                  {on && <span className="row-count full">SET</span>}
-                </button>
-              );
-            })}
+            <div className="row inset stats">
+              <span className="stat-label">Set for this march</span>
+              <span className="stat-value">{guardianKit(guardianId).name}</span>
+            </div>
           </div>
 
           <button className="modal-btn btn" onClick={onStart}>

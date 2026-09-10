@@ -1,8 +1,9 @@
 'use client';
 
 import type { RoomSlot } from '../../../game/types';
-import { EDITABLE_ROOMS } from '../../../game/types';
 import { LORD, monsterDef } from '../../../game/content/monsters';
+import { guardianKit } from '../../../game/content/guardians';
+import { lordWeapon } from '../../../game/content/lordWeapons';
 import { trapDef } from '../../../game/content/traps';
 import { treasureDef } from '../../../game/content/treasure';
 import { dungeonPower, lordSoulCost, upgradeCost } from '../../../game/state/economy';
@@ -11,7 +12,11 @@ import { ICON, contentArt } from '../art';
 
 interface RoomPlacementProps {
   state: GameState;
+  guardianLocked: boolean;
   onPickRoom: (index: number) => void;
+  onPickWeapon: () => void;
+  onPickGuardian: () => void;
+  onOpenTalents: () => void;
 }
 
 function slotName(slot: RoomSlot): string {
@@ -28,13 +33,22 @@ function slotCost(slot: RoomSlot): number {
   return 0;
 }
 
-export function RoomPlacementView({ state, onPickRoom }: RoomPlacementProps) {
+export function RoomPlacementView({
+  state,
+  guardianLocked,
+  onPickRoom,
+  onPickWeapon,
+  onPickGuardian,
+  onOpenTalents
+}: RoomPlacementProps) {
   const canUpgrade = (slot: RoomSlot) => {
     if (slot.kind === 'empty') return false;
     const level = state.levels[slot.id] || 1;
     return state.gold >= upgradeCost(slotCost(slot), level);
   };
   const throneReady = state.souls >= lordSoulCost(state.lordLevel);
+  const weapon = lordWeapon(state.equippedLordWeapon);
+  const guard = guardianKit(state.guardianId);
 
   return (
     <div className="place">
@@ -64,21 +78,36 @@ export function RoomPlacementView({ state, onPickRoom }: RoomPlacementProps) {
           <span className="place-power-label">Dungeon Power</span>
         </div>
 
+        <button className="place-slot btn" style={{ gridArea: 'wpn' }} onClick={onPickWeapon} aria-label={`Weapon — ${weapon.name}`}>
+          <img src={ICON.lord} alt="" />
+          <span className="place-slot-name">{weapon.name}</span>
+        </button>
+
         <button
           className="place-slot btn throne"
           style={{ gridArea: 'throne' }}
-          onClick={() => onPickRoom(EDITABLE_ROOMS)}
-          aria-label={`Throne Room — ${LORD.name}`}
+          onClick={onOpenTalents}
+          aria-label={`${LORD.name} — talents`}
         >
-          <span className="place-slot-n">6</span>
           <img src={ICON.lord} alt="" />
           <span className="place-slot-name">{LORD.short}</span>
           <span className="place-slot-lvl">Lv{state.lordLevel}</span>
           {throneReady && <span className="tab-dot live" />}
         </button>
+
+        <button
+          className={'place-slot btn' + (guardianLocked ? ' locked' : '')}
+          style={{ gridArea: 'grd' }}
+          onClick={onPickGuardian}
+          aria-label={`Guardian — ${guard.name}${guardianLocked ? ' (locked)' : ''}`}
+        >
+          <img src={contentArt('monster', guard.id)} alt="" />
+          <span className="place-slot-name">{guard.name}</span>
+          {guardianLocked && <img className="place-slot-lock" src={ICON.lock} alt="" />}
+        </button>
       </div>
 
-      <p className="place-rule">Tap a room to change what waits in it. The Throne is upgraded, never rebuilt.</p>
+      <p className="place-rule">Tap a room to change what waits in it. The Throne is leveled from Upgrades.</p>
     </div>
   );
 }

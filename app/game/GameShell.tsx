@@ -19,7 +19,6 @@ import {
   type CampaignState
 } from '../../game/state/campaign';
 import { HEROES } from '../../game/content/heroes';
-import { MONSTERS } from '../../game/content/monsters';
 import { simulateRaid } from '../../game/sim/raid';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
@@ -34,6 +33,7 @@ import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradePanel } from './panels/UpgradePanel';
+import { LordPickerSheet } from './panels/LordPickerSheet';
 import { WorldSheet } from './panels/WorldSheet';
 import { Coach, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
 import { ICON, artVars } from './art';
@@ -41,7 +41,7 @@ import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | null;
+type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'weapon' | 'guardian' | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
 
@@ -69,7 +69,6 @@ export default function GameShell() {
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
   const [equipTab, setEquipTab] = useState<'rooms' | 'upgrades'>('rooms');
-  const [guardian, setGuardian] = useState(MONSTERS[0].id);
   const [arthur, setArthur] = useState(() => HEROES[Math.floor(Math.random() * HEROES.length)].id);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -233,7 +232,7 @@ export default function GameShell() {
     sfx('door');
     setSheet(null);
     if (state.tutorial === 2) advanceTutorial(2);
-    const chosen = guardian;
+    const chosen = state.guardianId;
     const king = arthur;
     update((s) => {
       const camp = beginCampaign(s, raider, systemRng, chosen);
@@ -385,6 +384,13 @@ export default function GameShell() {
           {equipTab === 'rooms' ? (
             <RoomPlacementView
               state={state}
+              guardianLocked={onCampaign}
+              onPickWeapon={() => openSheet('weapon')}
+              onPickGuardian={() => openSheet('guardian')}
+              onOpenTalents={() => {
+                setTab('talent');
+                sfx('tap');
+              }}
               onPickRoom={(i) => {
                 if (i >= EDITABLE_ROOMS) {
                   openUpgrades();
@@ -399,8 +405,6 @@ export default function GameShell() {
               state={state}
               onUpgrade={upgrade}
               onLord={upgradeLord}
-              onBuyLordWeapon={buyLordWeapon}
-              onEquipLordWeapon={equipLordWeapon}
             />
           )}
         </div>
@@ -459,6 +463,18 @@ export default function GameShell() {
         onPlace={place}
         onBuy={buyUnlock}
       />
+      <LordPickerSheet
+        kind={sheet === 'weapon' || sheet === 'guardian' ? sheet : null}
+        state={state}
+        locked={onCampaign}
+        onPick={(id) => {
+          if (sheet === 'weapon') equipLordWeapon(id);
+          else if (!onCampaign) update((cur) => ({ ...cur, guardianId: id }));
+          setSheet(null);
+        }}
+        onBuy={buyLordWeapon}
+        onClose={closeSheet}
+      />
       <CodexSheet open={sheet === 'codex'} state={state} onClose={closeSheet} />
       <WorldSheet open={sheet === 'world'} state={state} onClose={closeSheet} />
       <SettingsSheet open={sheet === 'settings'} state={state} onClose={closeSheet} onReset={resetGame} />
@@ -466,11 +482,7 @@ export default function GameShell() {
       <IntelSheet
         open={sheet === 'intel'}
         intel={campaignIntel(state, arthur)}
-        guardianId={guardian}
-        onPick={(id) => {
-          setGuardian(id);
-          sfx('tap');
-        }}
+        guardianId={state.guardianId}
         onStart={startCampaign}
         onClose={closeSheet}
       />

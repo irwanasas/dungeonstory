@@ -489,7 +489,7 @@ a.row.link {
   grid-template-areas:
     'r1 r2 r3'
     'r4 core r5'
-    '. throne .';
+    'wpn throne grd';
   gap: 6px;
   flex: 0 1 auto;
   margin: auto 0;
@@ -514,6 +514,18 @@ a.row.link {
 
 .place-slot.empty > img {
   opacity: 0.3;
+}
+
+.place-slot.locked {
+  opacity: 0.55;
+}
+
+.place-slot-lock {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 12px;
+  height: 12px;
 }
 
 .place-slot-n {
