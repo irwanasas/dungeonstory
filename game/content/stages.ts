@@ -1,4 +1,4 @@
-import type { CampaignTier, StageDef } from '../types';
+import type { StageDef } from '../types';
 
 interface Seed {
   title: string;
@@ -57,10 +57,4 @@ export function unlockStageOf(id: string): number {
 
 export function stageDef(id: number): StageDef {
   return STAGES[Math.min(Math.max(1, id), STAGE_MAX) - 1];
-}
-
-export function tierOf(id: number): CampaignTier {
-  if (id <= 7) return 'early';
-  if (id <= 14) return 'mid';
-  return 'late';
 }

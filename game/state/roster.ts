@@ -48,11 +48,3 @@ export function absorbResult(
   rest.unshift(next);
   return rest.slice(0, ROSTER_CAP);
 }
-
-export function returningNote(record: HeroRecord): string | null {
-  if (record.raids === 0) return null;
-  if (record.deaths > 0 && record.scars.length > 0) {
-    return `Back again — and this time ${record.scars.join(' and ')} will not work.`;
-  }
-  return `Back for raid ${record.raids + 1}. Stronger than last time.`;
-}
