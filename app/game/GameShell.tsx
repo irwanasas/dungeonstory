@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
-import { toDungeon, unlockSoulCost } from '../../game/state/economy';
+import { rushRamp, toDungeon, unlockSoulCost } from '../../game/state/economy';
 import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
 import { canPlace, unlockedFor, type GameState } from '../../game/state/save';
 import { settleRaid, stageCleared as didClearStage } from '../../game/state/raidOutcome';
@@ -179,7 +179,13 @@ export default function GameShell() {
     const lordLevel = arcade ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
     const dungeon = { ...toDungeon(state), lordLevel };
     const tier = arcade ? state.wave : state.stage;
-    const raidResult = simulateRaid(dungeon, record, tier, { world: worldModifiers(state.world) });
+    const world = worldModifiers(state.world);
+    if (!arcade) {
+      const ramp = rushRamp(state.stage, STAGE_MAX);
+      world.heroAtk *= ramp;
+      world.heroHp *= ramp;
+    }
+    const raidResult = simulateRaid(dungeon, record, tier, { world });
 
     setStepping(true);
     setBattleStep(true);

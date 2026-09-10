@@ -40,11 +40,13 @@ import type { GameState } from './save';
 import type { CampaignState, DayOutcome, PartyMember } from './campaignState';
 import {
   CAMPAIGN_SHAPE,
+  MAX_WAVES,
   activeParty,
   campaignTier,
   daysToCheckpoint,
   familyEffect,
-  isCheckpointDay
+  isCheckpointDay,
+  waveSizeFor
 } from './campaignState';
 import { applyOption, decayMods, pickEvent, toPending } from './campaignEvents';
 import { GAP } from './campaignState';
@@ -113,13 +115,12 @@ function makeKing(camp: CampaignState, world: WorldModifiers, wave: number): Par
   );
 }
 
-export const WAVE_SIZE = 3;
-
 function rollWave(
   pool: string[],
   level: number,
   uidBase: string,
   wave: number,
+  size: number,
   world: WorldModifiers,
   rng: Rng,
   lead?: HeroRecord
@@ -131,7 +132,7 @@ function rollWave(
     out.push(makeMember({ ...lead, level: Math.max(lead.level, level) }, world, wave));
     taken.push(lead.defId);
   }
-  while (out.length < WAVE_SIZE) {
+  while (out.length < size) {
     const fresh = from.filter((id) => !taken.includes(id));
     const open = fresh.length > 0 ? fresh : from;
     const favoured = world.heroBias.filter((id) => open.includes(id));
@@ -167,6 +168,7 @@ export function beginCampaign(
 ): CampaignState {
   const stage = stageDef(state.stage);
   const campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, state.campaignNumber));
+  const waveSize = waveSizeFor(campaignNumber);
   const tier = campaignTier(campaignNumber);
   const gap = GAP[tier];
   const totalDays = gap * CHECKPOINTS;
@@ -201,8 +203,8 @@ export function beginCampaign(
     pending: null,
     dayTitle: 'The Road Begins',
     dayTone: 'neutral',
-    dayBody: `A party of ${WAVE_SIZE} sets out for your gate, ${record.name} at the front. ${totalDays} days of road lie between.`,
-    party: rollWave(stage.heroPool, level, seedBase, 1, world, rng, record),
+    dayBody: `A party of ${waveSize} sets out for your gate, ${record.name} at the front. ${totalDays} days of road lie between.`,
+    party: rollWave(stage.heroPool, level, seedBase, 1, waveSize, world, rng, record),
     waveIndex: 1,
     backupPending: false,
     monsters: roomRuntime(dungeon),
@@ -318,7 +320,7 @@ export function campaignIntel(state: GameState, arthurDefId: string): Intel {
     tier,
     totalDays: gap * CHECKPOINTS,
     gap,
-    waveSize: WAVE_SIZE,
+    waveSize: waveSizeFor(state.campaignNumber),
     pool,
     arthur: { defId: a.id, name: a.name, ability: a.ability.name, blurb: a.ability.blurb },
     lordLevel: Math.max(state.lordLevel, stage.lordLevel)
@@ -348,7 +350,7 @@ function callBackup(camp: CampaignState, world: WorldModifiers, rng: Rng, out: R
   // If the only checkpoint left is the Throne, no relief column can reach it in
   // time. Nobody else is coming, and the King arrives alone.
   const nextCheckpoint = camp.setup.checkpointDays.find((d) => d > camp.day);
-  if (nextCheckpoint === undefined || nextCheckpoint >= camp.setup.totalDays) {
+  if (nextCheckpoint === undefined || nextCheckpoint >= camp.setup.totalDays || camp.waveIndex >= MAX_WAVES) {
     camp.backupPending = false;
     return;
   }
@@ -360,6 +362,7 @@ function callBackup(camp: CampaignState, world: WorldModifiers, rng: Rng, out: R
       stageDef(camp.setup.stage).heroLevel,
       'camp' + camp.seed.toString(36),
       camp.waveIndex,
+      waveSizeFor(camp.setup.campaignNumber),
       world,
       rng
     )
@@ -683,6 +686,8 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
 export type { CampaignModifier, CampaignSetup, CampaignState, DayOutcome, DayTone, PartyMember, PendingChoice } from './campaignState';
 export {
   CAMPAIGN_SHAPE,
+  MAX_WAVES,
+  waveSizeFor,
   actingMember,
   activeParty,
   campaignFamily,

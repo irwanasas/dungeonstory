@@ -5,6 +5,14 @@ export function upgradeCost(baseCost: number, level: number): number {
   return Math.round(baseCost * 1.8 * Math.pow(1.25, level - 1));
 }
 
+export const RUSH_RAMP_TOTAL = 1.3;
+
+export function rushRamp(stage: number, stageMax: number): number {
+  if (stageMax <= 1) return 1;
+  const t = (Math.max(1, Math.min(stageMax, stage)) - 1) / (stageMax - 1);
+  return 1 + (RUSH_RAMP_TOTAL - 1) * t;
+}
+
 export function lordSoulCost(level: number): number {
   return Math.round(3 * Math.pow(1.35, level - 1));
 }

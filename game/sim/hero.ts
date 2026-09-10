@@ -99,8 +99,10 @@ export function defMultOf(hero: HeroInstance): number {
   return defMultOfList(hero.status);
 }
 
+export const FLEE_CAP = 0.1;
+
 export function fleeThresholdOf(hero: HeroInstance, def: HeroDef): number {
-  let t = def.fleeThreshold;
+  let t = Math.min(def.fleeThreshold, FLEE_CAP);
   for (const s of hero.status) t += statusDef(s.kind).fleeDelta;
   return t;
 }

@@ -29,6 +29,12 @@ export function familyHeroes(family: HeroFamily): string[] {
   return HEROES.filter((h) => h.family === family).map((h) => h.id);
 }
 
+export const MAX_WAVES = 3;
+
+export function waveSizeFor(n: number): number {
+  return n <= 3 ? 1 : n <= 7 ? 2 : 3;
+}
+
 export function campaignTier(n: number): CampaignTier {
   return n <= 3 ? 'early' : n <= 6 ? 'mid' : 'late';
 }
