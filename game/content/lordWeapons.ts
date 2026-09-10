@@ -5,7 +5,6 @@ export interface LordWeapon {
   name: string;
   tag: Tag;
   desc: string;
-  stageMin: number;
   goldCost: number;
 }
 
@@ -15,7 +14,6 @@ export const LORD_WEAPONS: LordWeapon[] = [
     name: "Nekrokos's Blade",
     tag: 'physical',
     desc: 'His weapon since the beginning. Punishes a Bound or Chilled hero.',
-    stageMin: 1,
     goldCost: 0
   },
   {
@@ -23,7 +21,6 @@ export const LORD_WEAPONS: LordWeapon[] = [
     name: "Nekrokos's Brand",
     tag: 'fire',
     desc: 'Ignites a hero still slick with oil.',
-    stageMin: 7,
     goldCost: 200
   },
   {
@@ -31,7 +28,6 @@ export const LORD_WEAPONS: LordWeapon[] = [
     name: "Nekrokos's Fang",
     tag: 'poison',
     desc: 'A second dose for a hero already poisoned.',
-    stageMin: 3,
     goldCost: 150
   },
   {
@@ -39,7 +35,6 @@ export const LORD_WEAPONS: LordWeapon[] = [
     name: "Nekrokos's Chill",
     tag: 'frost',
     desc: 'Locks down an oiled hero solid — but puts out one already burning.',
-    stageMin: 9,
     goldCost: 220
   }
 ];

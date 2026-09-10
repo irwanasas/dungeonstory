@@ -34,6 +34,7 @@ import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradePanel } from './panels/UpgradePanel';
 import { LordPickerSheet } from './panels/LordPickerSheet';
+import { ShopPanel } from './panels/ShopPanel';
 import { WorldSheet } from './panels/WorldSheet';
 import { Coach, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
 import { ICON, artVars } from './art';
@@ -41,7 +42,7 @@ import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'weapon' | 'guardian' | null;
+type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'guardian' | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
 
@@ -385,7 +386,10 @@ export default function GameShell() {
             <RoomPlacementView
               state={state}
               guardianLocked={onCampaign}
-              onPickWeapon={() => openSheet('weapon')}
+              onPickWeapon={() => {
+                setTab('shop');
+                sfx('tap');
+              }}
               onPickGuardian={() => openSheet('guardian')}
               onOpenTalents={() => {
                 setTab('talent');
@@ -410,7 +414,9 @@ export default function GameShell() {
         </div>
       )}
 
-      {!takeover && tab === 'shop' && <StubView title="Shop" note="Nothing on the shelves yet." />}
+      {!takeover && tab === 'shop' && (
+        <ShopPanel state={state} onBuy={buyLordWeapon} onEquip={equipLordWeapon} />
+      )}
       {!takeover && tab === 'talent' && (
         <StubView title="Talent Tree" note="Nekrokos has learned nothing new. Yet." />
       )}
@@ -464,15 +470,13 @@ export default function GameShell() {
         onBuy={buyUnlock}
       />
       <LordPickerSheet
-        kind={sheet === 'weapon' || sheet === 'guardian' ? sheet : null}
+        open={sheet === 'guardian'}
         state={state}
         locked={onCampaign}
         onPick={(id) => {
-          if (sheet === 'weapon') equipLordWeapon(id);
-          else if (!onCampaign) update((cur) => ({ ...cur, guardianId: id }));
+          if (!onCampaign) update((cur) => ({ ...cur, guardianId: id }));
           setSheet(null);
         }}
-        onBuy={buyLordWeapon}
         onClose={closeSheet}
       />
       <CodexSheet open={sheet === 'codex'} state={state} onClose={closeSheet} />
