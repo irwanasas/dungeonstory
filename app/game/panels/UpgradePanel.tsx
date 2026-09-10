@@ -7,6 +7,17 @@ import { lordSoulCost, upgradeCost } from '../../../game/state/economy';
 import type { GameState } from '../../../game/state/save';
 import { ICON, contentArt } from '../art';
 
+type Item =
+  | ({ kind: 'trap'; dmgPerLevel: number } & Record<string, unknown>)
+  | ({ kind: 'monster'; hpPerLevel: number; atkPerLevel: number } & Record<string, unknown>)
+  | ({ kind: 'treasure'; goldPerLevel: number } & Record<string, unknown>);
+
+function perLevel(item: Item): string {
+  if (item.kind === 'trap') return `+${item.dmgPerLevel} dmg`;
+  if (item.kind === 'monster') return `+${item.hpPerLevel} HP  +${item.atkPerLevel} atk`;
+  return `+${item.goldPerLevel} gold`;
+}
+
 interface UpgradeProps {
   state: GameState;
   onUpgrade: (id: string, cost: number) => void;
@@ -30,6 +41,9 @@ export function UpgradePanel({ state, onUpgrade, onLord }: UpgradeProps) {
             {LORD.name}<span className="row-lvl">Lv{state.lordLevel}</span>
           </span>
           <span className="row-desc">Your last line. More health, more damage, more armour in the Throne Room.</span>
+          <span className="row-delta">
+            +{LORD.hpPerLevel} HP&nbsp;&nbsp;+{LORD.atkPerLevel} atk&nbsp;&nbsp;+{LORD.defPerLevel} def
+          </span>
         </span>
         <span className={'row-cost' + (state.souls >= lordCost ? '' : ' cant')}>
           <img src={ICON.soul} alt="" />
@@ -58,6 +72,7 @@ export function UpgradePanel({ state, onUpgrade, onLord }: UpgradeProps) {
                 <span className="row-lvl">Lv{lvl}</span>
               </span>
               <span className="row-desc">{item.desc}</span>
+              <span className="row-delta">{perLevel(item as Item)}</span>
             </span>
             <span className={'row-cost' + (state.gold >= cost ? '' : ' cant')}>
               <img src={ICON.gold} alt="" />

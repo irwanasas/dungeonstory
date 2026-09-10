@@ -4,6 +4,29 @@ import { CHECKPOINTS } from '../../../game/types';
 import type { DayTone, CampaignState } from '../../../game/state/campaign';
 import { activeParty, daysToCheckpoint, isCheckpointDay } from '../../../game/state/campaign';
 import { statusDef } from '../../../game/content/statuses';
+import { dayEvent } from '../../../game/content/dayEvents';
+import { describeEffect } from '../../../game/state/world';
+
+const STATUS_TO = { party: '', monsters: ' on monsters', both: ' on both' } as const;
+
+// The pending choice only carries id/label/hint, so read the mechanics off the
+// event definition it came from.
+function optionEffect(pending: NonNullable<CampaignState['pending']>, optionId: string): string {
+  if (pending.kind === 'proc') {
+    const kind = pending.proc ? statusDef(pending.proc.kind).name : 'the effect';
+    return optionId === 'amp' ? `${kind} potency x1.6` : `${kind} +2 days`;
+  }
+  const o = dayEvent(pending.eventId)?.options.find((x) => x.id === optionId);
+  if (!o) return 'No effect';
+  const parts = describeEffect(o.effect);
+  if (o.effect && o.days !== undefined) parts.push(o.days < 0 ? 'permanent' : `for ${o.days} days`);
+  if (o.applyStatus) {
+    const a = o.applyStatus;
+    parts.push(`${statusDef(a.kind).name}${STATUS_TO[a.to]}, ${a.days} days`);
+  }
+  if (o.healPct) parts.push(`+${Math.round(o.healPct * 100)}% Heal`);
+  return parts.length > 0 ? parts.join(' · ') : 'No effect';
+}
 
 const TONE_LABEL: Record<DayTone, string> = {
   blessed: 'fortune',
@@ -101,6 +124,7 @@ export function DayPanel({ camp, busy, onChoose, onNextDay, onFinish }: DayPanel
             <button key={o.id} className="story-option btn" onClick={() => onChoose(o.id)} disabled={busy}>
               <span className="story-option-label">{o.label}</span>
               <span className="story-option-hint">{o.hint}</span>
+              <span className="story-option-effect">{optionEffect(pending, o.id)}</span>
             </button>
           ))
         ) : (

@@ -156,6 +156,14 @@
   line-height: 1.32;
   margin-top: 2px;
 }
+.row-delta {
+  font-family: var(--pixel);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: var(--moss-lit);
+  margin-top: 2px;
+}
+
 .row-hint {
   display: block;
   font-size: 10px;
@@ -657,4 +665,14 @@ a.row.link {
 .idle .modal-btn {
   margin-top: 12px;
   max-width: 200px;
+}
+
+.story-option-effect {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 8px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: var(--stone-lit);
+  margin-top: 3px;
 }
