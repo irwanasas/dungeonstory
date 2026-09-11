@@ -322,11 +322,14 @@ export default function GameShell() {
   return (
     <div className="app" style={artVars}>
       <header className="hud plate">
-        <div className="hud-left">
-          <div className="hud-title">OWN A DUNGEON</div>
-          <div className="hud-sub">
-            {`Stage ${state.stage}/${STAGE_MAX} · ${stage.title}`}
-          </div>
+        <div className="hud-left hud-lord">
+          <span className="hud-portrait inset">
+            <img src={ICON.lord} alt="" />
+          </span>
+          <span className="hud-lord-info">
+            <div className="hud-title">Nekrokos</div>
+            <div className="hud-sub">{`Level: ${state.lordLevel}`}</div>
+          </span>
         </div>
         <div className="hud-right">
           <span className="coin">
