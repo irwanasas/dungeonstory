@@ -249,7 +249,7 @@ export function endCampaign(
     (id) => !state.unlockedMilestones.includes(id)
   );
 
-  const hero = roster[0];
+  const hero = roster.find((h) => h.uid === camp.party[0].record.uid) || roster[0];
   const fame = hero
     ? legacyFrom(hero, synthetic)
         .filter((id) => !state.hallOfFame.some((e) => e.uid === hero.uid && e.milestoneId === id))
@@ -653,7 +653,9 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     queueProc(camp, res.procs);
     out.push({ t: 'stalled', room: roomIndex });
     camp.dayTitle = 'A Long Standoff';
-    camp.dayBody = `Neither side breaks in ${label}. The party pulls back to try again.`;
+    camp.dayBody = isThrone
+      ? `Neither side breaks in ${label}. Nekrokos lets them go, and regroups at full strength for the next attempt.`
+      : `Neither side breaks in ${label}. The party pulls back to try again.`;
     camp.log.push({ day: camp.day, kind: 'stall', text: `${label} ended in a standoff.` });
     return;
   }
@@ -689,7 +691,6 @@ export {
   CAMPAIGN_SHAPE,
   MAX_WAVES,
   waveSizeFor,
-  actingMember,
   activeParty,
   campaignFamily,
   campaignTier,

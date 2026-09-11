@@ -177,7 +177,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
     saved.bestDaysByCampaign && typeof saved.bestDaysByCampaign === 'object' ? { ...saved.bestDaysByCampaign } : {};
   merged.talentLevel = Math.max(0, Math.min(TALENT_MAX, Math.floor(merged.talentLevel) || 0));
   merged.rooms = enforceCaps(rooms);
-  merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
+  merged.stage = Math.max(1, Math.min(STAGES.length, Math.floor(merged.stage) || 1));
   merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));
   merged.unlocked = unlockedFor(merged.stage);
   return merged;

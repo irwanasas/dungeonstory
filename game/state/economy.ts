@@ -23,13 +23,17 @@ export function unlockSoulCost(goldCost: number, unlockStage: number, currentSta
   return Math.max(2, Math.round((goldCost / 5) * (1 + early * 0.35)));
 }
 
+export function tierScaleFactor(tier: number): number {
+  return 1 + (tier - 1) * 0.11;
+}
+
 export function raidRewards(
   outcome: Outcome,
   roomsEntered: number,
   tier: number,
   world: WorldModifiers
 ): { gold: number; souls: number } {
-  const scale = 1 + (tier - 1) * 0.11;
+  const scale = tierScaleFactor(tier);
   const toll = roomsEntered * 4;
   const g = world.gold;
   const sl = world.souls;
@@ -43,7 +47,7 @@ export function raidRewards(
 }
 
 export function checkpointReward(tier: number, world: WorldModifiers, held: boolean): { gold: number; souls: number } {
-  const scale = 1 + (tier - 1) * 0.11;
+  const scale = tierScaleFactor(tier);
   const gold = Math.round((held ? 14 : 6) * scale * world.gold);
   const souls = held ? Math.round((1 + Math.floor(tier / 6)) * world.souls) : 0;
   return { gold, souls };

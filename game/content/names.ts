@@ -28,10 +28,7 @@ export const SCAR_TITLE: Record<string, string> = {
   fire: 'the Fireburnt',
   frost: 'the Frostbitten',
   physical: 'the Broken-Boned',
-  arcane: 'the Shadow-Touched',
-  bind: 'the Net-Torn',
-  oil: 'the Oil-Slicked',
-  nature: 'the Thorn-Marked'
+  arcane: 'the Shadow-Touched'
 };
 
 let counter = 0;

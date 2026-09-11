@@ -534,7 +534,5 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
     [float, patch, scrollRef, wait]
   );
 
-  const reset = useCallback(() => setView(INITIAL), []);
-
-  return { view, play, reset, speed, setSpeed };
+  return { view, play, speed, setSpeed };
 }

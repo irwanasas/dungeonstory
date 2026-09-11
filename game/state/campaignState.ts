@@ -71,7 +71,7 @@ export interface PartyMember {
 
 export interface CampaignModifier {
   id: string;
-  source: 'choice' | 'altar' | 'knowledge';
+  source: 'choice' | 'altar';
   label: string;
   daysLeft: number;
   effect: WorldEffect;
@@ -160,10 +160,6 @@ export function daysToCheckpoint(camp: CampaignState): number {
 
 export function livingMembers(camp: CampaignState): PartyMember[] {
   return camp.party.filter((m) => m.alive && !m.fled);
-}
-
-export function actingMember(camp: CampaignState): PartyMember | null {
-  return livingMembers(camp)[0] || null;
 }
 
 export function activeParty(camp: CampaignState): PartyMember[] {

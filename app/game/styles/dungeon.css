@@ -242,10 +242,6 @@
   filter: drop-shadow(0 0 12px rgba(252, 100, 60, 0.9)) saturate(1.5);
   animation: pulse 0.5s ease-in-out infinite;
 }
-.actor.gone {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
 .actor.pop img {
   animation: pop-in 0.36s cubic-bezier(0.34, 1.7, 0.5, 1);
 }

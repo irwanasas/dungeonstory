@@ -344,7 +344,7 @@ export default function GameShell() {
       </header>
 
       <nav className="tabs">
-        <button className="tab tab-icon btn" onClick={() => {}} disabled={busy} aria-label="Announcements">
+        <button className="tab tab-icon btn" onClick={() => openSheet('world')} disabled={busy} aria-label="Announcements">
           <img src={ICON.world} alt="" />
           {(state.world.unread > 0 || effectCount(state.world) > 0) && (
             <span className={'tab-dot' + (state.world.unread === 0 ? ' live' : '')} />
@@ -410,10 +410,6 @@ export default function GameShell() {
                 sfx('tap');
               }}
               onPickRoom={(i) => {
-                if (i >= EDITABLE_ROOMS) {
-                  openUpgrades();
-                  return;
-                }
                 setSelected(i);
                 openSheet('build');
               }}
@@ -502,7 +498,7 @@ export default function GameShell() {
         onStart={startCampaign}
         onClose={closeSheet}
       />
-      <CampaignSheet open={sheet === 'report'} camp={report} onClose={closeSheet} />
+      <CampaignSheet open={sheet === 'report'} camp={report} news={sheet === 'report' ? news : null} onClose={closeSheet} />
       <ResultPanel
         open={resultOpen}
         result={result}

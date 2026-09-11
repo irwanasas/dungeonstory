@@ -53,8 +53,3 @@ export function talentBonus(level: number): TalentBonus {
   }
   return bonus;
 }
-
-export function talentCost(level: number): number | null {
-  const node = TALENTS[Math.max(0, Math.floor(level) || 0)];
-  return node ? node.soulCost : null;
-}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RoomSlot } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
 import { trapDef } from '../../game/content/traps';
@@ -43,7 +43,6 @@ export default function DungeonView({
   onSpeed,
   quiet
 }: Props) {
-  const worldRef = useRef<HTMLDivElement>(null);
   const [pad, setPad] = useState(0);
 
   useEffect(() => {
@@ -78,7 +77,7 @@ export default function DungeonView({
   return (
     <div className={'stage' + (quiet ? ' quiet' : '')}>
       <div className={'scroll' + (view.raiding ? ' locked' : '')} ref={scrollRef}>
-        <div className="world" ref={worldRef} style={{ ['--pad' as string]: `${pad}px` }}>
+        <div className="world" style={{ ['--pad' as string]: `${pad}px` }}>
           <div className="pad" />
           <div className="track" style={{ position: 'relative', display: 'flex', height: '100%' }}>
             {cells.map((index) => {

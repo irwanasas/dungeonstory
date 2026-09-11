@@ -131,15 +131,6 @@ export interface PartyCtx {
   world: WorldModifiers;
 }
 
-export interface Ctx {
-  hero: HeroInstance;
-  def: HeroDef;
-  rng: Rng;
-  out: RaidEvent[];
-  killedByTag: Tag | null;
-  world: WorldModifiers;
-}
-
 export function tagMult(world: WorldModifiers, tag: Tag): number {
   return world.tagDamage[tag] || 1;
 }
@@ -360,14 +351,4 @@ export function fightGroup(ctx: PartyCtx, foes: Foe[]): { wiped: boolean; foesDe
   }
 
   return { wiped: false, foesDead: false, stalled: true };
-}
-
-export function fight(ctx: Ctx, enemy: Enemy): { heroDied: boolean; enemyDied: boolean } {
-  const member: Combatant = { hero: ctx.hero, def: ctx.def, killedByTag: ctx.killedByTag };
-  const party: PartyCtx = { members: [member], rng: ctx.rng, out: ctx.out, world: ctx.world };
-  const foe = toFoe(enemy, 0);
-  const res = fightGroup(party, [foe]);
-  enemy.hp = foe.hp;
-  ctx.killedByTag = member.killedByTag;
-  return { heroDied: res.wiped, enemyDied: res.foesDead };
 }

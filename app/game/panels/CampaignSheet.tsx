@@ -1,5 +1,6 @@
 'use client';
 
+import type { WorldEvent } from '../../../game/types';
 import type { CampaignState } from '../../../game/state/campaign';
 import { OUTCOME_COPY } from '../overlays';
 import { Sheet } from './Sheet';
@@ -7,10 +8,11 @@ import { Sheet } from './Sheet';
 interface CampaignSheetProps {
   open: boolean;
   camp: CampaignState | null;
+  news?: WorldEvent | null;
   onClose: () => void;
 }
 
-export function CampaignSheet({ open, camp, onClose }: CampaignSheetProps) {
+export function CampaignSheet({ open, camp, news, onClose }: CampaignSheetProps) {
   const copy = camp && camp.outcome ? OUTCOME_COPY[camp.outcome] : null;
   const gold = camp ? Math.max(0, camp.totals.gold - camp.totals.goldStolen) : 0;
 
@@ -20,6 +22,13 @@ export function CampaignSheet({ open, camp, onClose }: CampaignSheetProps) {
         <>
           <div className={'modal-title ' + copy.cls}>{copy.title}</div>
           <p className="sheet-rule">{copy.desc}</p>
+
+          {news && (
+            <div className="news">
+              <span className={'tone-tag ' + news.tone}>{news.category}</span>
+              <span>{news.headline}</span>
+            </div>
+          )}
 
           <div className="sheet-group">
             <div className="row inset stats">

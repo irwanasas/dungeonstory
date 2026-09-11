@@ -65,7 +65,9 @@ export function BuildSheet({ open, room, state, onClose, onPlace, onBuy }: Build
                       {item.name}
                       <span className="row-lvl">Lv{lvl}</span>
                     </span>
-                    <span className="row-desc">{atCap ? "Already in 2 rooms — that's the limit." : item.desc}</span>
+                    <span className="row-desc">
+                      {atCap ? `Already in ${MAX_PER_ID} rooms — that's the limit.` : item.desc}
+                    </span>
                   </span>
                   {chip}
                 </>

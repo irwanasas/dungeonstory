@@ -106,5 +106,5 @@ export function useGameState() {
     setOffline(null);
   }, [rollRaider]);
 
-  return { state, raider, offline, setOffline, update, rollRaider, resetState, heroPoolOf };
+  return { state, raider, offline, setOffline, update, rollRaider, resetState };
 }
