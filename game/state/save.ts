@@ -7,6 +7,7 @@ import { TRAPS } from '../content/traps';
 import { MONSTERS } from '../content/monsters';
 import { GUARDIANS } from '../content/guardians';
 import { TREASURES } from '../content/treasure';
+import { TALENT_MAX } from '../content/talents';
 import { defaultWorld, normalizeWorld } from './world';
 
 export interface GameStats {
@@ -36,6 +37,7 @@ export interface GameState {
   wave: number;
   bestWave: number;
   lordLevel: number;
+  talentLevel: number;
   rooms: RoomSlot[];
   levels: Record<string, number>;
   unlocked: string[];
@@ -122,6 +124,7 @@ export function defaultState(): GameState {
     wave: 1,
     bestWave: 0,
     lordLevel: 1,
+    talentLevel: 0,
     rooms: emptyRooms(),
     levels: {},
     unlocked: unlockedFor(1),
@@ -172,6 +175,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   merged.campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, Math.floor(merged.campaignNumber) || 1));
   merged.bestDaysByCampaign =
     saved.bestDaysByCampaign && typeof saved.bestDaysByCampaign === 'object' ? { ...saved.bestDaysByCampaign } : {};
+  merged.talentLevel = Math.max(0, Math.min(TALENT_MAX, Math.floor(merged.talentLevel) || 0));
   merged.rooms = enforceCaps(rooms);
   merged.stage = Math.max(1, Math.min(STAGES.length, merged.stage));
   merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));

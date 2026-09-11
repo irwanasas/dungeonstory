@@ -7,6 +7,7 @@ import type {
   MonsterUnit,
   RaidEvent,
   StatusKind,
+  TalentBonus,
   Tag,
   WorldModifiers
 } from '../types';
@@ -51,6 +52,7 @@ export interface CheckpointInput {
   party: CombatMember[];
   runtime: MonsterRuntime | null;
   world: WorldModifiers;
+  talents: TalentBonus;
   rng: Rng;
   lord: { level: number; weaponId: string; guardianId?: string } | null;
   killedByTag: Tag | null;
@@ -73,6 +75,7 @@ function buildFoes(
   def: MonsterDef,
   level: number,
   world: WorldModifiers,
+  talents: TalentBonus,
   runtime: MonsterRuntime | null,
   count: number
 ): Foe[] {
@@ -80,7 +83,7 @@ function buildFoes(
   for (let i = 0; i < count; i++) {
     const unit = runtime ? runtime.units[i] : undefined;
     if (unit && unit.dead) continue;
-    const enemy = monsterEnemy(def, level, world);
+    const enemy = monsterEnemy(def, level, world, talents);
     if (unit && unit.hp !== null) enemy.hp = Math.min(enemy.maxHp, Math.max(0, unit.hp));
     foes.push(toFoe(enemy, i, unit ? unit.status.map((s) => ({ ...s })) : []));
   }
@@ -142,7 +145,7 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
   if (isThrone) {
     const spec = input.lord;
     const kit = spec && spec.guardianId ? guardianKit(spec.guardianId) : null;
-    const lord = lordEnemy(lordWeapon(spec ? spec.weaponId : ''), spec ? spec.level : 1, world);
+    const lord = lordEnemy(lordWeapon(spec ? spec.weaponId : ''), spec ? spec.level : 1, world, input.talents);
     if (kit) {
       lord.hp = Math.max(1, Math.round(lord.hp * kit.lordHp));
       lord.maxHp = lord.hp;
@@ -158,7 +161,7 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
     if (kit) {
       const gd = monsterDef(kit.id);
       for (let i = 0; i < kit.count; i++) {
-        const g = monsterEnemy(gd, spec ? spec.level : 1, world);
+        const g = monsterEnemy(gd, spec ? spec.level : 1, world, input.talents);
         g.hp = Math.max(1, Math.round(g.hp * kit.guardHp));
         g.maxHp = g.hp;
         g.atk = Math.max(1, Math.round(g.atk * kit.guardAtk));
@@ -196,7 +199,7 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
   if (slot.kind === 'monster') {
     const md = monsterDef(slot.id);
     const count = Math.max(1, Math.min(md.count, input.foeCap === undefined ? md.count : input.foeCap));
-    const foes = buildFoes(md, built.level, world, input.runtime, count);
+    const foes = buildFoes(md, built.level, world, input.talents, input.runtime, count);
     if (foes.length === 0) {
       result.cleared = true;
       result.runtime = input.runtime;
@@ -246,7 +249,9 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
       out.push({ t: 'reaction', kind: 'relief' });
     } else {
       out.push({ t: 'trapFire', trapId: td.id, disarmed: false });
-      const amount = (td.damage + (built.level - 1) * td.dmgPerLevel) * world.trapDamage * tagMult(world, td.tag);
+      const amount =
+        (td.damage + (built.level - 1) * td.dmgPerLevel) * world.trapDamage * tagMult(world, td.tag) +
+        input.talents.trapDmg;
       for (let i = 0; i < members.length; i++) {
         const m = members[i];
         if (m.hero.hp <= 0) continue;

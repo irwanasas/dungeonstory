@@ -5,6 +5,7 @@ import type {
   MonsterDef,
   RaidEvent,
   StatusKind,
+  TalentBonus,
   Tag,
   WorldModifiers
 } from '../types';
@@ -46,17 +47,22 @@ export interface Enemy {
   source: 'monster' | 'lord';
 }
 
-export function monsterEnemy(def: MonsterDef, level: number, world: WorldModifiers): Enemy {
+export function monsterEnemy(
+  def: MonsterDef,
+  level: number,
+  world: WorldModifiers,
+  talents: TalentBonus
+): Enemy {
   const lvl = Math.max(1, level);
-  const hp = Math.max(1, Math.round((def.hp + (lvl - 1) * def.hpPerLevel) * world.monsterHp));
+  const hp = Math.max(1, Math.round((def.hp + (lvl - 1) * def.hpPerLevel) * world.monsterHp) + talents.hp);
   return {
     id: def.id,
     name: def.name,
     tag: def.tag,
     hp,
     maxHp: hp,
-    atk: Math.max(1, Math.round((def.atk + (lvl - 1) * def.atkPerLevel) * world.monsterAtk)),
-    def: def.def,
+    atk: Math.max(1, Math.round((def.atk + (lvl - 1) * def.atkPerLevel) * world.monsterAtk) + talents.atk),
+    def: def.def + talents.def,
     hitsPerRound: def.hitsPerRound,
     cadence: def.cadence,
     strikesFirst: def.strikesFirst,
@@ -69,17 +75,22 @@ export function monsterEnemy(def: MonsterDef, level: number, world: WorldModifie
   };
 }
 
-export function lordEnemy(weapon: LordWeapon, level: number, world: WorldModifiers): Enemy {
+export function lordEnemy(
+  weapon: LordWeapon,
+  level: number,
+  world: WorldModifiers,
+  talents: TalentBonus
+): Enemy {
   const lvl = Math.max(1, level);
-  const hp = Math.max(1, Math.round((LORD.hp + (lvl - 1) * LORD.hpPerLevel) * world.monsterHp));
+  const hp = Math.max(1, Math.round((LORD.hp + (lvl - 1) * LORD.hpPerLevel) * world.monsterHp) + talents.hp);
   return {
     id: 'lord',
     name: LORD.name,
     tag: weapon.tag,
     hp,
     maxHp: hp,
-    atk: Math.max(1, Math.round((LORD.atk + (lvl - 1) * LORD.atkPerLevel) * world.monsterAtk)),
-    def: Math.round(LORD.def + (lvl - 1) * LORD.defPerLevel),
+    atk: Math.max(1, Math.round((LORD.atk + (lvl - 1) * LORD.atkPerLevel) * world.monsterAtk) + talents.atk),
+    def: Math.round(LORD.def + (lvl - 1) * LORD.defPerLevel) + talents.def,
     hitsPerRound: LORD.hitsPerRound,
     cadence: 1,
     strikesFirst: false,

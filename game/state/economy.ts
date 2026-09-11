@@ -1,4 +1,5 @@
 import type { Outcome, WorldModifiers } from '../types';
+import { talentBonus } from '../content/talents';
 import type { GameState } from './save';
 
 export function upgradeCost(baseCost: number, level: number): number {
@@ -59,6 +60,7 @@ export function toDungeon(state: {
   rooms: import('../types').RoomSlot[];
   levels: Record<string, number>;
   lordLevel: number;
+  talentLevel: number;
   equippedLordWeapon: string;
 }): import('../types').Dungeon {
   return {
@@ -67,6 +69,7 @@ export function toDungeon(state: {
       level: slot.kind === 'empty' ? 1 : state.levels[slot.id] || 1
     })),
     lordLevel: state.lordLevel,
-    lordWeaponId: state.equippedLordWeapon
+    lordWeaponId: state.equippedLordWeapon,
+    talents: talentBonus(state.talentLevel)
   };
 }

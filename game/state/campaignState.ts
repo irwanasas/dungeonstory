@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { CAMPAIGN_MAX, CHECKPOINTS, EDITABLE_ROOMS } from '../types';
 import { dayEvent } from '../content/dayEvents';
+import { NO_TALENTS } from '../content/talents';
 import { HEROES } from '../content/heroes';
 
 export const CAMPAIGN_SHAPE = 3;
@@ -134,6 +135,7 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   if (typeof setup.campaignNumber !== 'number' || setup.campaignNumber < 1 || setup.campaignNumber > CAMPAIGN_MAX)
     return null;
   if (!setup.dungeon || !Array.isArray(setup.dungeon.rooms)) return null;
+  if (!setup.dungeon.talents) setup.dungeon.talents = { ...NO_TALENTS };
   if (typeof e.day !== 'number' || e.day < 1 || e.day > setup.totalDays + 1) return null;
   if (!Array.isArray(e.party) || e.party.length === 0) return null;
   if (!Array.isArray(e.monsters) || e.monsters.length !== EDITABLE_ROOMS + 1) return null;

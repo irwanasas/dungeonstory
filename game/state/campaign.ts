@@ -611,6 +611,7 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     })),
     runtime: camp.monsters[roomIndex],
     world: mods,
+    talents: camp.setup.dungeon.talents,
     rng,
     lord: isThrone
       ? {

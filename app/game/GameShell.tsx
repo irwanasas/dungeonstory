@@ -19,6 +19,7 @@ import {
   type CampaignState
 } from '../../game/state/campaign';
 import { HEROES } from '../../game/content/heroes';
+import { TALENT_MAX } from '../../game/content/talents';
 import { simulateRaid } from '../../game/sim/raid';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
@@ -29,10 +30,10 @@ import { CampaignSheet } from './panels/CampaignSheet';
 import { RoomPlacementView } from './panels/RoomPlacementView';
 import { CampaignIdle } from './panels/CampaignIdle';
 import { ExploreView } from './panels/ExploreView';
-import { StubView } from './panels/StubView';
 import { IntelSheet } from './panels/IntelSheet';
 import { SettingsSheet } from './panels/SettingsSheet';
 import { UpgradePanel } from './panels/UpgradePanel';
+import { TalentPanel } from './panels/TalentPanel';
 import { LordPickerSheet } from './panels/LordPickerSheet';
 import { ShopPanel } from './panels/ShopPanel';
 import { WorldSheet } from './panels/WorldSheet';
@@ -155,6 +156,15 @@ export default function GameShell() {
 
   function upgradeLord(souls: number) {
     update((s) => (s.souls < souls ? s : { ...s, souls: s.souls - souls, lordLevel: s.lordLevel + 1 }));
+    sfx('lord');
+  }
+
+  function buyTalent(index: number, souls: number) {
+    update((s) =>
+      s.talentLevel !== index || s.souls < souls || index >= TALENT_MAX
+        ? s
+        : { ...s, souls: s.souls - souls, talentLevel: index + 1 }
+    );
     sfx('lord');
   }
 
@@ -418,9 +428,7 @@ export default function GameShell() {
       {!takeover && tab === 'shop' && (
         <ShopPanel state={state} onBuy={buyLordWeapon} onEquip={equipLordWeapon} />
       )}
-      {!takeover && tab === 'talent' && (
-        <StubView title="Talent Tree" note="Nekrokos has learned nothing new. Yet." />
-      )}
+      {!takeover && tab === 'talent' && <TalentPanel state={state} onBuy={buyTalent} />}
       {!takeover && tab === 'explore' && (
         <ExploreView
           state={state}

@@ -157,10 +157,18 @@ export interface BuiltRoom {
   level: number;
 }
 
+export interface TalentBonus {
+  hp: number;
+  atk: number;
+  def: number;
+  trapDmg: number;
+}
+
 export interface Dungeon {
   rooms: BuiltRoom[];
   lordLevel: number;
   lordWeaponId: string;
+  talents: TalentBonus;
 }
 
 export interface MonsterUnit {
