@@ -6,12 +6,19 @@ skill.
 
 ## Git
 
-- Commit and push directly to `main`. Do not create branches.
-- If the session assigns a branch, say so and follow this file instead.
+- Commit and push directly to `main` only. Never create a branch.
+- Not on `main`, or the session assigns a different branch → say so before
+  committing. Don't commit or branch on your own.
 
 ## Code
 
 - No code comments. Plain code only.
+
+## Approach
+
+Search before reading; read before editing. Make the smallest surgical
+fix — don't touch what isn't broken, don't add unneeded abstraction.
+Decide and proceed; flag only real ambiguity or risk.
 
 ## Summaries
 
