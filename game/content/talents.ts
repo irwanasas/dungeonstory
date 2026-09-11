@@ -12,7 +12,7 @@ export interface TalentNode {
 export const TALENT_MAX = 30;
 
 const PATTERN: TalentKind[] = ['hp', 'atk', 'hp', 'def', 'atk', 'trap'];
-const BASE: Record<TalentKind, number> = { hp: 5, atk: 2, def: 1, trap: 2 };
+const BASE: Record<TalentKind, number> = { hp: 2, atk: 1, def: 1, trap: 2 };
 
 export const TALENT_NAME: Record<TalentKind, string> = {
   hp: 'Deep Roots',
