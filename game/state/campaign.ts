@@ -51,7 +51,15 @@ import {
 import { applyOption, decayMods, pickEvent, toPending } from './campaignEvents';
 import { GAP } from './campaignState';
 
-const KEPT_EVENTS = new Set(['interaction', 'monsterSplit', 'trapFire', 'monsterDown', 'treasureTaken']);
+const KEPT_EVENTS = new Set([
+  'interaction',
+  'monsterSplit',
+  'trapFire',
+  'monsterDown',
+  'treasureTaken',
+  'kingArrives',
+  'throneGuardian'
+]);
 
 function dayRng(camp: CampaignState, salt: number): Rng {
   return seeded((camp.seed ^ Math.imul(camp.day + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b)) >>> 0);
@@ -245,9 +253,10 @@ export function endCampaign(
     roster = absorbResult(roster, m.record, { survived: m.alive || m.fled, killedByTag: m.killedByTag });
   }
 
-  const earned = [...trophiesFrom(camp.record), ...challengesFrom(camp.setup.dungeon, camp.setup.stage, synthetic)].filter(
-    (id) => !state.unlockedMilestones.includes(id)
-  );
+  const earned = [
+    ...trophiesFrom(camp.record, outcome === 'dungeonWin'),
+    ...challengesFrom(camp.setup.dungeon, camp.setup.stage, synthetic, camp.setup.campaignNumber)
+  ].filter((id) => !state.unlockedMilestones.includes(id));
 
   const hero = roster.find((h) => h.uid === camp.party[0].record.uid) || roster[0];
   const fame = hero
@@ -556,6 +565,7 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     king.doubledEffect = alone;
     camp.party = [...camp.party, king];
     wave = activeParty(camp);
+    out.push({ t: 'kingArrives', defId: camp.setup.arthurDefId, alone });
     camp.log.push({
       day: camp.day,
       kind: 'king',
@@ -598,6 +608,8 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     ? { slot: { kind: 'empty' as const }, level: 1 }
     : camp.setup.dungeon.rooms[index] || { slot: { kind: 'empty' as const }, level: 1 };
   const roomIndex = isThrone ? EDITABLE_ROOMS : index;
+
+  if (isThrone) out.push({ t: 'throneGuardian', id: camp.setup.guardianId });
 
   const res = runCheckpoint({
     roomIndex,

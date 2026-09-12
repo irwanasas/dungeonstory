@@ -1,4 +1,5 @@
 import type { Challenge, Dungeon, RaidResult, RoomSlot } from '../types';
+import { CAMPAIGN_MAX } from '../types';
 import { LORD } from './monsters';
 
 export const CHALLENGES: Challenge[] = [
@@ -40,6 +41,12 @@ export const CHALLENGES: Challenge[] = [
     title: 'Frostbitten',
     desc: 'Crack a chilled hero with a physical hit, then finish a monster off in the same raid.',
     soulReward: 3
+  },
+  {
+    id: 'campaign-ten',
+    title: 'The Tenth Siege',
+    desc: 'Clear Campaign 10.',
+    soulReward: 10
   }
 ];
 
@@ -54,7 +61,7 @@ function frostbitten(result: RaidResult): boolean {
   return chill >= 0 && result.events.some((e, i) => i > chill && e.t === 'monsterDown');
 }
 
-function passes(id: string, dungeon: Dungeon, result: RaidResult): boolean {
+function passes(id: string, dungeon: Dungeon, result: RaidResult, campaignNumber?: number): boolean {
   const filled = filledSlots(dungeon);
   const won = result.outcome === 'dungeonWin' && filled.length > 0;
   switch (id) {
@@ -70,13 +77,17 @@ function passes(id: string, dungeon: Dungeon, result: RaidResult): boolean {
       return won && filled.length === dungeon.rooms.length;
     case 'frostbitten-kill':
       return frostbitten(result);
+    case 'campaign-ten':
+      return result.outcome === 'dungeonWin' && campaignNumber === CAMPAIGN_MAX;
     default:
       return false;
   }
 }
 
-export function challengesFrom(dungeon: Dungeon, stage: number, result: RaidResult): string[] {
-  return CHALLENGES.filter((c) => stage >= (c.stageMin || 1) && passes(c.id, dungeon, result)).map((c) => c.id);
+export function challengesFrom(dungeon: Dungeon, stage: number, result: RaidResult, campaignNumber?: number): string[] {
+  return CHALLENGES.filter((c) => stage >= (c.stageMin || 1) && passes(c.id, dungeon, result, campaignNumber)).map(
+    (c) => c.id
+  );
 }
 
 export function challengeSouls(ids: string[]): number {

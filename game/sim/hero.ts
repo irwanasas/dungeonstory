@@ -222,7 +222,7 @@ export function resolveHit(
     dmg *= inter.dmgMult;
     if (inter.consumes) clearStatus(hero, inter.requiresStatus, out);
     if (inter.applies) extra = inter.applies;
-    out.push({ t: 'interaction', id: inter.id, name: inter.name, hint: inter.hint });
+    out.push({ t: 'interaction', id: inter.id, name: inter.name, hint: inter.hint, source: hit.source });
   }
 
   if (def.resist.includes(hit.tag)) dmg *= 0.55;

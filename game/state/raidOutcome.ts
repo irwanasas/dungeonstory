@@ -23,7 +23,7 @@ export function settleRaid(state: GameState, s: RaidSettlement): GameState {
   const roster = absorbResult(state.roster, record, result);
   const hero = roster[0];
   const earned = [
-    ...trophiesFrom(result.events),
+    ...trophiesFrom(result.events, result.outcome === 'dungeonWin'),
     ...(arcade ? [] : challengesFrom(dungeon, state.stage, result))
   ].filter((id) => !state.unlockedMilestones.includes(id));
   const fame = legacyFrom(hero, result)

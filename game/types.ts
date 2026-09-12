@@ -255,8 +255,10 @@ export type RaidEvent =
   | { t: 'heroAttack'; dmg: number; crit: boolean; miss: boolean; targetHp: number; targetMaxHp: number; slot?: number }
   | { t: 'enemyWindup'; ranged: boolean; slot?: number }
   | { t: 'ability'; id: string; name: string }
-  | { t: 'interaction'; id: string; name: string; hint: string }
+  | { t: 'interaction'; id: string; name: string; hint: string; source?: 'trap' | 'monster' | 'lord' }
   | { t: 'damage'; source: 'trap' | 'monster' | 'lord'; tag: Tag; dmg: number; evaded: boolean; heroHp: number; heroMaxHp: number }
+  | { t: 'kingArrives'; defId: string; alone: boolean }
+  | { t: 'throneGuardian'; id: string }
   | { t: 'heal'; amount: number; heroHp: number }
   | { t: 'statusOn'; kind: StatusKind }
   | { t: 'statusOff'; kind: StatusKind }

@@ -1,5 +1,19 @@
 import type { ComboTrophy, HeroRecord, RaidEvent, RaidResult } from '../types';
 import { INTERACTIONS } from './interactions';
+import { GUARDIANS } from './guardians';
+import { HEROES } from './heroes';
+
+const GUARDIAN_TROPHIES: ComboTrophy[] = GUARDIANS.map((g) => ({
+  id: `guardian-win-${g.id}`,
+  name: `${g.name.toUpperCase()} HELD`,
+  desc: `Won a Throne fight with the ${g.name} guarding it.`
+}));
+
+const KING_CLASS_TROPHIES: ComboTrophy[] = HEROES.map((h) => ({
+  id: `king-class-${h.id}`,
+  name: `${h.role.toUpperCase()} FALLEN`,
+  desc: `Beat a King Arthur fighting as ${h.name}, the ${h.role}.`
+}));
 
 export const TROPHIES: ComboTrophy[] = [
   ...INTERACTIONS.map((i) => ({ id: i.id, name: i.name, desc: i.hint })),
@@ -12,15 +26,33 @@ export const TROPHIES: ComboTrophy[] = [
     id: 'first-disarm',
     name: 'PICKED CLEAN',
     desc: 'A hero spotted one of your traps and took it apart before it fired.'
+  },
+  {
+    id: 'king-alone',
+    name: 'THE LAST KING',
+    desc: 'King Arthur rode to the Throne with no one left beside him — and struck twice as hard for it.'
+  },
+  ...GUARDIAN_TROPHIES,
+  ...KING_CLASS_TROPHIES,
+  {
+    id: 'full-circle',
+    name: 'FULL CIRCLE',
+    desc: "Nekrokos's own strike closed a combo a trap usually does."
   }
 ];
 
-export function trophiesFrom(events: RaidEvent[]): string[] {
+export function trophiesFrom(events: RaidEvent[], won: boolean): string[] {
   const found = new Set<string>();
   for (const e of events) {
-    if (e.t === 'interaction') found.add(e.id);
-    else if (e.t === 'monsterSplit') found.add('first-split');
+    if (e.t === 'interaction') {
+      found.add(e.id);
+      if (e.source === 'lord') found.add('full-circle');
+    } else if (e.t === 'monsterSplit') found.add('first-split');
     else if (e.t === 'trapFire' && e.disarmed) found.add('first-disarm');
+    else if (e.t === 'kingArrives') {
+      if (e.alone) found.add('king-alone');
+      if (won) found.add(`king-class-${e.defId}`);
+    } else if (e.t === 'throneGuardian' && won) found.add(`guardian-win-${e.id}`);
   }
   return [...found];
 }
