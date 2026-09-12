@@ -95,8 +95,9 @@ ENTRANCE -> ROOM 1..5 (yours to design) -> THRONE ROOM (permanent)
 
 - **Gold** is earned from raids and spent leveling up the traps, monsters,
   and treasure you own.
-- **Souls** are the rarer currency, spent on the Dungeon Lord's level and his
-  weapons. Runs pay a few; mastery challenges pay the rest.
+- **Souls** are the rarer currency, spent on the Dungeon Lord's level, his
+  weapons, and the talent ladder. Runs pay a few; mastery challenges pay the
+  rest.
 - **Campaign** — the main mode. Ten campaigns, each a multi-day march to your
   gate. See below.
 - **Rush** — one hero, five rooms plus the Throne, settled in a single pass.
@@ -128,20 +129,26 @@ the road does things to them before they arrive.
 
 Three things are kept for you in the Codex, on top of the stage ladder.
 
-- **Trophies** — eight discoveries, one for each of the game's named
-  combinations plus a couple of other notable moments. Every trophy reads `???`
-  until you actually cause it, then reveals its name and what it was. They cost
-  nothing and grant nothing; they're a record of what you've figured out.
+- **Trophies** — 21 entries. Most are surprises: the game's named combinations,
+  King Arthur arriving alone, Nekrokos landing a combo with his own attack.
+  These read `???` until you actually cause them, then reveal their name and
+  what happened. Two sets are chase-able instead — beat a Throne fight with
+  each of the five Guardians, beat a King Arthur of each of the six hero
+  classes — and show their name and goal up front so you can aim at them,
+  just greyed out until earned. Unlocking any trophy pops a short toast. They
+  cost nothing and grant nothing; they're a record of what you've figured out.
 - **Hall of Fame** — heroes who had a real career in your dungeon: one who
   reached their peak without you ever killing them, one who walked out alive
   carrying two scars, one who came back for a twentieth raid. Entries stay after
   the hero dies or drops out of your active roster. It's a memorial, not a
   roster.
-- **Mastery challenges** — six constraint puzzles, listed openly so you can aim
-  at them, each paying souls the first time you clear it. One asks you to win a
-  raid without a single trap in the dungeon; others want a specific dungeon
-  shape, or a hero who never touched your treasure. They're checked in Stage
-  mode, and a few only open up from a later stage.
+- **Mastery challenges** — seven constraint puzzles, listed openly so you can
+  aim at them, each paying souls the first time you clear it. One asks you to
+  win a raid without a single trap in the dungeon, another to clear the
+  campaign ladder up through Campaign 10; others want a specific dungeon
+  shape, or a hero who never touched your treasure. Most are checked in Stage
+  mode (a few only open up from a later stage); the campaign one only clears
+  from inside a march.
 
 ## World events
 
@@ -161,11 +168,13 @@ raid. Campaign day-events cover the same ground from inside a march.
 
 Five tabs along the bottom:
 
-- **Shop** — placeholder for now.
+- **Shop** — buy and equip Nekrokos's Lord Weapon, which sets the damage type
+  his own blows carry at the Throne.
 - **Rooms** — the room grid and your Dungeon Power, plus an Upgrades sub-tab
   for the Lord, his weapons and your content levels.
 - **Campaign** — the campaign card and the start of a march.
-- **Talents** — placeholder for a future Nekrokos talent tree.
+- **Talents** — a 30-node ladder bought with souls; each node adds a flat
+  HP/attack/defence/trap-damage bonus across everything you own.
 - **Explore** — one-off Rush and Arcade runs.
 
 Along the top: an announcements slot on the left, Codex and Settings on the
@@ -187,6 +196,16 @@ All Rights Reserved 2026.
 
 | When (UTC) | Change |
 | --- | --- |
+| 2026-09-12 20:47 | Nekrokos and King Arthur sprites scaled up 1.3x in battle |
+| 2026-09-12 20:13 | Trophy visibility split into surprise (`???`) and collection (visible checklist); unlock toast added |
+| 2026-09-12 19:57 | Campaign-era trophies (King Arthur solo, per-Guardian, per-King-class, full-circle) and the campaign-ten challenge |
+| 2026-09-11 21:27 | Talent ladder base HP/atk gain per node lowered |
+| 2026-09-11 21:14 | HUD title replaced with a Nekrokos portrait and level |
+| 2026-09-11 21:09 | Dungeon talent ladder added, bought with souls |
+| 2026-09-10 14:22 | Lord weapons gated by price; buy flow moved into Shop |
+| 2026-09-10 11:36 | Stale tutorial copy fixed; battle checkpoint covered |
+| 2026-09-10 10:49 | Stat deltas shown on upgrade rows and campaign day choices |
+| 2026-09-10 07:52 | Weapon and guardian selection moved into the Rooms grid |
 | 2026-09-10 06:07 | Rush difficulty ramp raised to 1.8x across stages 1-20 |
 | 2026-09-10 05:49 | Campaign wave bands (1/2/3 heroes by campaign number, 3 waves capped), flee threshold capped at 10% HP |
 | 2026-09-10 05:38 | Upgrade cost curve flattened from x1.5 to x1.25 per level |
