@@ -196,34 +196,13 @@ All Rights Reserved 2026.
 
 | When (UTC) | Change |
 | --- | --- |
-| 2026-09-12 20:47 | Nekrokos and King Arthur sprites scaled up 1.3x in battle |
-| 2026-09-12 20:13 | Trophy visibility split into surprise (`???`) and collection (visible checklist); unlock toast added |
 | 2026-09-12 19:57 | Campaign-era trophies (King Arthur solo, per-Guardian, per-King-class, full-circle) and the campaign-ten challenge |
-| 2026-09-11 21:27 | Talent ladder base HP/atk gain per node lowered |
-| 2026-09-11 21:14 | HUD title replaced with a Nekrokos portrait and level |
 | 2026-09-11 21:09 | Dungeon talent ladder added, bought with souls |
-| 2026-09-10 14:22 | Lord weapons gated by price; buy flow moved into Shop |
-| 2026-09-10 11:36 | Stale tutorial copy fixed; battle checkpoint covered |
-| 2026-09-10 10:49 | Stat deltas shown on upgrade rows and campaign day choices |
-| 2026-09-10 07:52 | Weapon and guardian selection moved into the Rooms grid |
-| 2026-09-10 06:07 | Rush difficulty ramp raised to 1.8x across stages 1-20 |
-| 2026-09-10 05:49 | Campaign wave bands (1/2/3 heroes by campaign number, 3 waves capped), flee threshold capped at 10% HP |
-| 2026-09-10 05:38 | Upgrade cost curve flattened from x1.5 to x1.25 per level |
-| 2026-09-10 04:26 | `campaign.ts` split by responsibility; raid settlement moved out of `GameShell` |
-| 2026-09-10 04:07 | Dead code removed (hero teaser, `tierOf`, orphaned CSS); stat rows right-aligned |
-| 2026-09-09 21:06 | Campaign idle screen; campaigns 1-10 themed by hero family and day length |
-| 2026-09-09 14:19 | Explore tab with Rush, Arcade and Coming Soon panels |
-| 2026-09-09 14:14 | Arcade mode reactivated |
-| 2026-09-09 13:47 | Stage mode renamed Rush; single-pass raid restored |
-| 2026-09-09 13:31 | Build and Upgrade merged into one Rooms tab |
-| 2026-09-09 13:11 | Expedition renamed Campaign throughout |
-| 2026-09-09 13:02 | Five-tab bottom nav replaces the three-button bar; top bar reordered |
-| 2026-09-09 12:15 | Room placement moved to its own screen |
-| 2026-09-09 10:29 | Sheet panel overflow and text wrapping fixed |
+| 2026-09-10 14:22 | Lord weapons gated by price; Shop tab made functional |
+| 2026-09-09 14:19 | Explore tab with Rush and Arcade unified under it |
+| 2026-09-09 13:02 | Five-tab bottom nav replaces the three-button bar |
 | 2026-09-09 06:17 | Expedition rework complete: King Arthur, Guardian kits, intel screen |
 | 2026-09-09 05:39 | Status ailment procs and ecosystem events |
 | 2026-09-09 05:04 | Squad combat, waves and tag knowledge |
-| 2026-09-09 04:47 | Day-event pool weighted by the room ahead |
 | 2026-09-09 04:35 | Expedition skeleton replaces the single-raid loop |
-| 2026-09-09 04:06 | Content and type restructure; Oil and Net traps retired |
 | 2026-09-08 22:15 | Initial project import |
