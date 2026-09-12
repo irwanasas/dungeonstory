@@ -449,6 +449,44 @@ a.row.link {
   color: var(--bone);
 }
 
+.milestone-toast {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  top: 100px;
+  z-index: 31;
+  padding: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.milestone-toast.on {
+  opacity: 1;
+  transform: translateY(0);
+}
+.milestone-toast-inner {
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.milestone-toast-tag {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--gold);
+}
+.milestone-toast-name {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--gold-lit);
+}
+.milestone-toast-desc {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--bone);
+}
+
 .codex-tag {
   display: inline-block;
   font-family: var(--pixel);

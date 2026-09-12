@@ -182,6 +182,26 @@ export const TUTORIAL: CoachStep[] = [
   { text: 'Now change the dungeon and run it again. The same heroes come back smarter.', pos: 'low' }
 ];
 
+export interface MilestoneToastItem {
+  name: string;
+  desc: string;
+  kind: 'trophy' | 'challenge';
+}
+
+export function MilestoneToast({ item }: { item: MilestoneToastItem | null }) {
+  return (
+    <div className={'milestone-toast' + (item ? ' on' : '')}>
+      {item && (
+        <div className="milestone-toast-inner frame">
+          <span className="milestone-toast-tag">{item.kind === 'challenge' ? 'Challenge Complete' : 'Trophy Unlocked'}</span>
+          <span className="milestone-toast-name">{item.name}</span>
+          <span className="milestone-toast-desc">{item.desc}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Coach({ step, hidden }: { step: number; hidden: boolean }) {
   const item = TUTORIAL[step];
   const open = !!item && !hidden;

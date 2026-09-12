@@ -53,6 +53,7 @@ export interface ComboTrophy {
   id: string;
   name: string;
   desc: string;
+  discoveryType?: 'surprise' | 'collection';
 }
 
 export interface Challenge {

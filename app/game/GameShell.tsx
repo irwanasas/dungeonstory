@@ -37,7 +37,8 @@ import { TalentPanel } from './panels/TalentPanel';
 import { LordPickerSheet } from './panels/LordPickerSheet';
 import { ShopPanel } from './panels/ShopPanel';
 import { WorldSheet } from './panels/WorldSheet';
-import { Coach, OfflinePanel, ResultPanel, TUTORIAL } from './overlays';
+import { Coach, MilestoneToast, OfflinePanel, ResultPanel, TUTORIAL, type MilestoneToastItem } from './overlays';
+import { milestoneLabel } from '../../game/content/milestones';
 import { ICON, artVars } from './art';
 import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
@@ -72,6 +73,9 @@ export default function GameShell() {
   const [tab, setTab] = useState<Tab>('campaign');
   const [equipTab, setEquipTab] = useState<'rooms' | 'upgrades'>('rooms');
   const [arthur, setArthur] = useState<string | null>(null);
+  const [activeToast, setActiveToast] = useState<MilestoneToastItem | null>(null);
+  const toastQueueRef = useRef<MilestoneToastItem[]>([]);
+  const toastBusyRef = useRef(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
@@ -101,6 +105,26 @@ export default function GameShell() {
 
   const stage = stageDef(state.stage);
   const filled = state.rooms.filter((r) => r.kind !== 'empty').length;
+
+  function stepToast() {
+    const next = toastQueueRef.current.shift();
+    if (!next) {
+      toastBusyRef.current = false;
+      setActiveToast(null);
+      return;
+    }
+    toastBusyRef.current = true;
+    setActiveToast(next);
+    sfx('coin');
+    setTimeout(stepToast, 2600);
+  }
+
+  function queueToasts(ids: string[]) {
+    const items = ids.map(milestoneLabel).filter((x): x is MilestoneToastItem => x !== null);
+    if (items.length === 0) return;
+    toastQueueRef.current.push(...items);
+    if (!toastBusyRef.current) stepToast();
+  }
 
   function place(slot: RoomSlot) {
     if (selected < 0 || selected >= EDITABLE_ROOMS) return;
@@ -209,7 +233,10 @@ export default function GameShell() {
     const turned = tickWorld(state.world, arcade ? MIN_WORLD_STAGE : state.stage, systemRng);
     const settlement = { mode, record, dungeon, result: raidResult, world: turned.world };
     const cleared = didClearStage(state, settlement);
-    update((cur) => settleRaid(cur, settlement));
+    const settled = settleRaid(state, settlement);
+    const earned = settled.unlockedMilestones.filter((id) => !state.unlockedMilestones.includes(id));
+    update(() => settled);
+    queueToasts(earned);
 
     setResult(raidResult);
     setStageCleared(cleared);
@@ -292,11 +319,13 @@ export default function GameShell() {
   function finishCampaign() {
     if (busy || !state || !camp || camp.status !== 'complete') return;
     const done = endCampaign(state, camp, systemRng);
+    const earned = done.state.unlockedMilestones.filter((id) => !state.unlockedMilestones.includes(id));
     update(() => done.state);
     setReport(camp);
     setNews(done.fired);
     setSheet('report');
     sfx(camp.outcome === 'dungeonWin' ? 'win' : camp.outcome === 'heroEscape' ? 'escape' : 'lose');
+    queueToasts(earned);
     if (state.tutorial === 3) advanceTutorial(3);
     rollRaider(done.state);
   }
@@ -509,6 +538,7 @@ export default function GameShell() {
       />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />
+      <MilestoneToast item={activeToast} />
     </div>
   );
 }

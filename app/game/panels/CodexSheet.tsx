@@ -53,11 +53,12 @@ export function CodexSheet({ open, state, onClose }: { open: boolean; state: Gam
           </div>
           {TROPHIES.map((t) => {
             const got = state.unlockedMilestones.includes(t.id);
+            const reveal = got || t.discoveryType === 'collection';
             return (
               <div key={t.id} className={'row inset' + (got ? '' : ' locked')}>
                 <span className="row-body">
-                  <span className="row-name">{got ? t.name : '???'}</span>
-                  <span className="row-hint">{got ? t.desc : 'Not yet discovered.'}</span>
+                  <span className="row-name">{reveal ? t.name : '???'}</span>
+                  <span className="row-hint">{reveal ? t.desc : 'Not yet discovered.'}</span>
                 </span>
               </div>
             );
