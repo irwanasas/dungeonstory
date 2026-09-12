@@ -1,14 +1,16 @@
-"""UserPromptSubmit hook: keep the lean-dev contract in effect every turn.
+"""UserPromptSubmit hook: keep the lean-dev contract in effect, without repaying its
+full cost every turn.
 
 A skill body is model-invoked, so it drifts out of effect over a long session. This
-re-asserts the core contract deterministically. It is itself subject to the rules it
-carries: the full contract lands on turn 1 and every Nth turn after; other turns get a
-one-line reminder. When the user explicitly asks for depth, the guardrail is injected
-instead of the brevity rules, so the hook never argues against an explicit request.
+re-asserts the core contract on turn 1 and every Nth turn after that — otherwise it
+stays silent, since the contract already landed recently and repeating it is the same
+waste the contract itself warns against. When the user explicitly asks for depth, a
+short override lands instead of staying silent, so the hook never argues against an
+explicit request.
 
 Env:
   LEAN_DEV_OFF=1     disable entirely
-  LEAN_DEV_REFRESH=N re-inject the full contract every N turns (default 10)
+  LEAN_DEV_REFRESH=N re-inject the full contract every N turns (default 15)
 """
 
 import os
@@ -46,15 +48,12 @@ DEPTH_REQUEST = re.compile(
 )
 
 DEPTH_OVERRIDE = (
-    "The user asked for depth. Lean guardrail §7 applies: give the full "
-    "explanation they asked for — brevity is the default, not an override of an "
-    "explicit request. Still cut filler and don't restate the same point twice."
+    "Depth requested — §7 applies: give the full explanation asked for, still cut filler."
 )
 
 FALLBACK_CORE = (
-    "Lean contract: answer first, no filler, no code comments, short summary. Least code "
-    "that works. Search before read, batch independent calls, trust a write that succeeded. "
-    "Never trade away correctness, a caveat worth raising, or actually running the check."
+    "Lean contract: answer first, no filler, no code comments. Least code that works. "
+    "Never trade away correctness, a caveat, a needed question, or running the check."
 )
 
 
@@ -82,18 +81,16 @@ def main() -> None:
         _state.prune_old_state()
 
     try:
-        refresh = max(1, int(os.environ.get("LEAN_DEV_REFRESH", "10")))
+        refresh = max(1, int(os.environ.get("LEAN_DEV_REFRESH", "15")))
     except ValueError:
-        refresh = 10
+        refresh = 15
 
     if DEPTH_REQUEST.search(prompt):
-        text = DEPTH_OVERRIDE
+        _state.emit_context("UserPromptSubmit", DEPTH_OVERRIDE)
     elif turn == 1 or turn % refresh == 0:
-        text = _read("CORE.md", FALLBACK_CORE)
-    else:
-        text = _read("CORE_SHORT.md", FALLBACK_CORE)
-
-    _state.emit_context("UserPromptSubmit", text)
+        _state.emit_context("UserPromptSubmit", _read("CORE.md", FALLBACK_CORE))
+    # Otherwise: the contract landed recently enough to still hold. Say nothing —
+    # re-injecting it every turn is the exact waste pattern this skill exists to cut.
 
 
 if __name__ == "__main__":

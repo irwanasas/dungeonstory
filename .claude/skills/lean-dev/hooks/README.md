@@ -7,18 +7,21 @@ session. These two hooks make the contract deterministic instead.
 
 | Hook | Event | What it does |
 |---|---|---|
-| `efficiency_core.py` | `UserPromptSubmit` | Re-injects the contract each turn: `CORE.md` on turn 1 and every Nth turn, `CORE_SHORT.md` otherwise. When the prompt asks for depth (matched in ~10 languages), it injects the §7 guardrail instead, so the hook never argues against an explicit request. |
-| `trajectory_guard.py` | `PostToolUse` | Watches the trajectory and speaks only when a concrete waste pattern just happened: re-reading a range already read, reading a file back after this turn's own edit, reading a large file whole with no prior search, or re-running a build/test that already passed. Silent otherwise, and capped so the guard never becomes the bloat. |
+| `efficiency_core.py` | `UserPromptSubmit` | Injects `CORE.md` on turn 1 and every Nth turn after. Every other turn it's silent — the contract landed recently, so repeating it would be the exact waste it warns against. When the prompt asks for depth (matched in ~10 languages), it injects a one-line §7 override instead, so the hook never argues against an explicit request. |
+| `trajectory_guard.py` | `PostToolUse` | Watches the trajectory and speaks only when a concrete waste pattern just happened: re-reading a range already read, reading a file back after this turn's own edit, reading a large file whole with no prior search, or re-running a build/test that already passed. The first hit in each category explains itself; later hits in the same category get a one-line tag instead of the full explanation again. Silent otherwise, and capped so the guard never becomes the bloat. |
 
 `_state.py` is shared per-session state for both. No third-party deps; Python 3.
+
+`CORE_SHORT.md` is kept as a one-line reference for the short form of the contract; the
+hook no longer auto-injects it per turn (see above).
 
 ## Environment variables
 
 | Variable | Default | Effect |
 |---|---|---|
 | `LEAN_DEV_OFF` | unset | Any value except `0`/`false` disables both hooks entirely. |
-| `LEAN_DEV_REFRESH` | `10` | Re-inject the full `CORE.md` every N turns. |
-| `LEAN_DEV_MAX_WARN` | `12` | Cap on `trajectory_guard` warnings per session. |
+| `LEAN_DEV_REFRESH` | `15` | Re-inject the full `CORE.md` every N turns. |
+| `LEAN_DEV_MAX_WARN` | `8` | Cap on `trajectory_guard` warnings per session. |
 
 ## Registration
 

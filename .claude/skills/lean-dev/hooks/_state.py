@@ -20,7 +20,7 @@ DEFAULT_STATE = {
     "reads": {},          # path -> [[start, end, turn], ...]
     "edited": {},         # path -> prompt_id of the last edit
     "commands": {},       # normalized command -> turn first seen
-    "waste": {"reread": 0, "blind_read": 0, "recheck": 0},
+    "waste": {"reread": 0, "blind_read": 0, "edit_recheck": 0, "bash_recheck": 0},
     "warnings_emitted": 0,
     "reported_at": 0,     # waste total at the last Stop report
 }

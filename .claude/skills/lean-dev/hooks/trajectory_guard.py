@@ -3,16 +3,19 @@
 Advice in a skill body is a suggestion; this observes the trajectory and says something
 only when a concrete, checkable waste pattern just happened:
 
-  re-read      the same file range was already read this session and hasn't changed
-  edit-recheck a file was read right after this turn's own successful edit to it
-  blind-read   a large file was read whole with no search performed first
-  recheck      a build/test command that already ran this session was run again
+  reread        the same file range was already read this session and hasn't changed
+  edit_recheck  a file was read right after this turn's own successful edit to it
+  blind_read    a large file was read whole with no search performed first
+  bash_recheck  a build/test command that already ran this session was run again
 
-It stays quiet otherwise, and caps itself so the guard never becomes the bloat.
+The first hit in a category explains itself; every later hit in the same category is a
+one-line tag instead — the reasoning already landed, so repeating it in full would be
+the same waste this hook exists to flag. It stays quiet otherwise, and caps itself so
+the guard never becomes the bloat.
 
 Env:
   LEAN_DEV_OFF=1        disable entirely
-  LEAN_DEV_MAX_WARN=N   cap warnings per session (default 12)
+  LEAN_DEV_MAX_WARN=N   cap warnings per session (default 8)
 """
 
 import os
@@ -48,6 +51,11 @@ def _response_lines(event: dict) -> int:
     return text.count("\n")
 
 
+def _fire(state: dict, category: str, full: str, short: str) -> str:
+    state["waste"][category] = state["waste"].get(category, 0) + 1
+    return full if state["waste"][category] == 1 else short
+
+
 def _check_read(event: dict, state: dict, turn: int, prompt_id: str):
     tool_input = event.get("tool_input") or {}
     path = str(tool_input.get("file_path") or "").replace("\\", "/")
@@ -61,23 +69,22 @@ def _check_read(event: dict, state: dict, turn: int, prompt_id: str):
 
     edited_in = state["edited"].get(path)
     if edited_in and edited_in == prompt_id:
-        state["waste"]["recheck"] += 1
-        return (
-            f"Lean: you edited {path} earlier in this same turn and are now reading it "
-            "back. A successful edit would have errored if it hadn't landed — re-read only "
-            "when something downstream of the change needs checking (SKILL.md §6)."
+        return _fire(
+            state, "edit_recheck",
+            f"Lean: re-read {path} right after editing it this turn — a successful edit "
+            "doesn't need a verifying re-read (SKILL.md §6).",
+            f"Lean: edit-recheck again ({path}).",
         )
 
     prior = state["reads"].get(path, [])
     for p_start, p_end, p_turn in prior:
         if p_start <= end and start <= p_end:
-            state["waste"]["reread"] += 1
-            span = "the whole file" if p_end >= WHOLE_FILE else f"lines {p_start}-{p_end}"
             state["reads"][path] = prior + [[start, end, turn]]
-            return (
-                f"Lean: {path} — you already read {span} at turn {p_turn} and it hasn't "
-                "changed since. Use what's already in context rather than re-reading it "
-                "(SKILL.md §6)."
+            return _fire(
+                state, "reread",
+                f"Lean: {path} — already read at turn {p_turn}, unchanged since; reuse "
+                "it instead of re-reading (SKILL.md §6).",
+                f"Lean: reread again ({path}).",
             )
 
     state["reads"][path] = prior + [[start, end, turn]]
@@ -85,12 +92,11 @@ def _check_read(event: dict, state: dict, turn: int, prompt_id: str):
     if end >= WHOLE_FILE and state.get("searches", 0) == 0:
         lines = _response_lines(event)
         if lines >= BLIND_READ_LINES:
-            state["waste"]["blind_read"] += 1
-            return (
-                f"Lean: read {path} whole (~{lines} lines) with no search first. When you "
-                "are looking for a specific symbol or section, Grep/Glob to the line range and "
-                "read that range — a full read spends the attention budget on lines you won't "
-                "use (SKILL.md §6)."
+            return _fire(
+                state, "blind_read",
+                f"Lean: read {path} whole (~{lines} lines) with no search first — "
+                "Grep/Glob to the range next time (SKILL.md §6).",
+                f"Lean: blind-read again ({path}).",
             )
     return None
 
@@ -103,11 +109,11 @@ def _check_bash(event: dict, state: dict, turn: int):
     state["commands"][cmd] = seen if seen else turn
     if seen is None:
         return None
-    state["waste"]["recheck"] += 1
-    return (
-        f"Lean: `{cmd[:80]}` already ran at turn {seen}. Re-run a check only when it "
-        "failed, is flaky, or something it depends on changed — a rerun after a clean pass "
-        "adds no evidence (SKILL.md §6)."
+    return _fire(
+        state, "bash_recheck",
+        f"Lean: `{cmd[:60]}` already ran at turn {seen} — rerun only if it failed, is "
+        "flaky, or a dependency changed (SKILL.md §6).",
+        f"Lean: recheck again (`{cmd[:40]}`).",
     )
 
 
@@ -137,9 +143,9 @@ def main() -> None:
         message = _check_bash(event, state, turn)
 
     try:
-        max_warn = max(0, int(os.environ.get("LEAN_DEV_MAX_WARN", "12")))
+        max_warn = max(0, int(os.environ.get("LEAN_DEV_MAX_WARN", "8")))
     except ValueError:
-        max_warn = 12
+        max_warn = 8
 
     if message and state.get("warnings_emitted", 0) >= max_warn:
         message = None
