@@ -138,7 +138,11 @@ export default function DungeonView({
             })}
 
             {view.foes.map((f) => (
-              <div key={f.slot} className={'actor foe ' + f.cls} style={{ ['--x' as string]: `${f.x}px` }}>
+              <div
+                key={f.slot}
+                className={'actor foe ' + f.cls + (f.lead ? ' lead' : '')}
+                style={{ ['--x' as string]: `${f.x}px` }}
+              >
                 <img src={f.art} alt="" />
               </div>
             ))}
@@ -147,7 +151,7 @@ export default function DungeonView({
               a.shown ? (
                 <div
                   key={a.index}
-                  className={'actor hero ' + a.cls}
+                  className={'actor hero ' + a.cls + (a.lead ? ' lead' : '')}
                   style={{
                     ['--x' as string]: `${a.x}px`,
                     transition: `transform ${a.ms}ms linear`

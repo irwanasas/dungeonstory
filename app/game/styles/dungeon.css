@@ -218,6 +218,10 @@
 .actor.hero {
   z-index: 5;
 }
+.actor.lead {
+  transform: translate3d(var(--x, 0px), 0, 0) scale(1.3);
+  z-index: 6;
+}
 .actor img {
   width: 56px;
   height: 56px;

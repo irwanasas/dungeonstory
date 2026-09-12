@@ -39,6 +39,7 @@ export interface ActorView {
   shown: boolean;
   badges: StatusKind[];
   reaction: string;
+  lead: boolean;
 }
 
 export interface FoeView {
@@ -46,6 +47,7 @@ export interface FoeView {
   art: string;
   x: number;
   cls: string;
+  lead: boolean;
 }
 
 export interface DirectorView {
@@ -126,6 +128,7 @@ interface HeroState {
   ms: number;
   cls: string;
   reaction: string;
+  king: boolean;
 }
 
 interface FoeState {
@@ -182,7 +185,8 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
         x: xOf(fromRoom, HERO_BASE + i * HERO_STEP),
         ms: 0,
         cls: '',
-        reaction: ''
+        reaction: '',
+        king: false
       }));
       const foes: FoeState[] = [];
 
@@ -200,9 +204,12 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
             cls: h.cls,
             shown: h.shown,
             badges: h.statuses,
-            reaction: h.reaction
+            reaction: h.reaction,
+            lead: h.king
           })),
-          foes: foes.filter((f) => !f.gone).map((f) => ({ slot: f.slot, art: monsterArt(f.id), x: f.x, cls: f.cls })),
+          foes: foes
+            .filter((f) => !f.gone)
+            .map((f) => ({ slot: f.slot, art: monsterArt(f.id), x: f.x, cls: f.cls, lead: f.id === 'lord' })),
           bars: [
             ...heroes.filter((h) => h.shown).map((h, i) => ({ id: 'h' + i, name: h.name, hp: h.hp, maxHp: h.maxHp, foe: false })),
             ...foes
@@ -319,6 +326,35 @@ export function useRaidDirector(scrollRef: React.RefObject<HTMLDivElement | null
             sfx('lord');
             await wait(1150);
             foes[0].cls = '';
+            commitActors();
+            break;
+          }
+
+          case 'kingArrives': {
+            heroes.push({
+              name: 'King Arthur',
+              defId: e.defId,
+              hp: e.hp,
+              maxHp: e.maxHp,
+              statuses: [],
+              shown: true,
+              x: xOf(room, heroFrac(heroes.length)),
+              ms: 0,
+              cls: 'pop',
+              reaction: '',
+              king: true
+            });
+            commitActors();
+            patch({
+              callout: {
+                key: ++keyId.current,
+                text: e.alone ? 'THE KING ARRIVES ALONE' : 'KING ARTHUR ARRIVES',
+                danger: e.alone
+              }
+            });
+            sfx('lord');
+            await wait(1150);
+            heroes[heroes.length - 1].cls = '';
             commitActors();
             break;
           }

@@ -258,7 +258,7 @@ export type RaidEvent =
   | { t: 'ability'; id: string; name: string }
   | { t: 'interaction'; id: string; name: string; hint: string; source?: 'trap' | 'monster' | 'lord' }
   | { t: 'damage'; source: 'trap' | 'monster' | 'lord'; tag: Tag; dmg: number; evaded: boolean; heroHp: number; heroMaxHp: number }
-  | { t: 'kingArrives'; defId: string; alone: boolean }
+  | { t: 'kingArrives'; defId: string; alone: boolean; hp: number; maxHp: number }
   | { t: 'throneGuardian'; id: string }
   | { t: 'heal'; amount: number; heroHp: number }
   | { t: 'statusOn'; kind: StatusKind }

@@ -565,7 +565,7 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     king.doubledEffect = alone;
     camp.party = [...camp.party, king];
     wave = activeParty(camp);
-    out.push({ t: 'kingArrives', defId: camp.setup.arthurDefId, alone });
+    out.push({ t: 'kingArrives', defId: camp.setup.arthurDefId, alone, hp: king.hero.hp, maxHp: king.hero.maxHp });
     camp.log.push({
       day: camp.day,
       kind: 'king',
