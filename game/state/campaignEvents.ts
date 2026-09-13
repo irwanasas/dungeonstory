@@ -4,7 +4,6 @@ import { DAY_EVENTS } from '../content/dayEvents';
 import { INTERACTIONS } from '../content/interactions';
 import { monsterDef } from '../content/monsters';
 import { trapDef } from '../content/traps';
-import { lordWeapon } from '../content/lordWeapons';
 import { heroDef } from '../content/heroes';
 import { applyStatus, applyStatusToUnit, heal } from '../sim/hero';
 import type { Rng } from '../sim/rng';
@@ -29,8 +28,7 @@ export function setupStatusesFor(tag: Tag): StatusKind[] {
 }
 
 export function upcomingTag(camp: CampaignState): Tag | null {
-  const index = camp.checkpoint;
-  if (index >= EDITABLE_ROOMS) return lordWeapon(camp.setup.dungeon.lordWeaponId).tag;
+  const index = camp.checkpoint % EDITABLE_ROOMS;
   const built = camp.setup.dungeon.rooms[index];
   if (!built) return null;
   if (built.slot.kind === 'trap') return trapDef(built.slot.id).tag;

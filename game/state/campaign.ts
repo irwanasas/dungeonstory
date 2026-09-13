@@ -8,15 +8,17 @@ import type {
   Outcome,
   RaidEvent,
   RaidResult,
+  RoomSlot,
   Tag,
   WorldEffect,
   WorldEvent,
   WorldModifiers,
   WorldState
 } from '../types';
-import { CAMPAIGN_MAX, CHECKPOINTS, EDITABLE_ROOMS, FAME_MAX } from '../types';
+import { CAMPAIGN_MAX, EDITABLE_ROOMS, FAME_MAX, MAX_PER_ID } from '../types';
 import { dayEvent, procFlavour } from '../content/dayEvents';
 import { MONSTERS, monsterDef } from '../content/monsters';
+import { TRAPS, trapDef } from '../content/traps';
 import { HEROES, heroDef } from '../content/heroes';
 import { STAGE_MAX, stageDef } from '../content/stages';
 import { makeName } from '../content/names';
@@ -31,25 +33,34 @@ import {
 } from '../sim/hero';
 import { fleeNote, wantsToFlee } from '../sim/ai';
 import { runCheckpoint, type ProcOffer } from '../sim/checkpoint';
+import { simulateRaid } from '../sim/raid';
 import { seeded, type Rng } from '../sim/rng';
-import { checkpointReward, toDungeon } from './economy';
+import { campaignPerformanceReward, checkpointReward, toDungeon, upgradeCost, type PerformanceInputs } from './economy';
 import { absorbResult } from './roster';
 import { composeModifiers, activeEffects, tickWorld, CAMPAIGN_CLAMP } from './world';
 import type { GameState } from './save';
 
-import type { CampaignState, DayOutcome, PartyMember } from './campaignState';
+import type { CampaignState, DayOutcome, MilestoneStop, PartyMember, PendingChoice } from './campaignState';
 import {
   CAMPAIGN_SHAPE,
+  CAMPAIGN_START_UNLOCKED,
+  CAMPAIGN_START_WALLET,
   MAX_WAVES,
+  MILESTONE_TABLE,
   activeParty,
   campaignTier,
   daysToCheckpoint,
   familyEffect,
   isCheckpointDay,
+  isFinalDay,
+  milestoneAt,
+  nextMilestone,
   waveSizeFor
 } from './campaignState';
 import { applyOption, decayMods, pickEvent, toPending } from './campaignEvents';
-import { GAP } from './campaignState';
+
+const RANDOM_BATTLE_CHANCE = 0.35;
+const MILESTONE_HERO_BUFF: Record<MilestoneStop['kind'], number> = { mini: 1, elite: 1.18, final: 1 };
 
 const KEPT_EVENTS = new Set([
   'interaction',
@@ -94,6 +105,18 @@ function roomRuntime(dungeon: Dungeon): (MonsterRuntime | null)[] {
     out.push({ id: built.slot.id, units });
   }
   return out;
+}
+
+function liveDungeon(camp: CampaignState): Dungeon {
+  return {
+    rooms: camp.runRooms.map((slot) => ({
+      slot,
+      level: slot.kind === 'empty' ? 1 : camp.runLevels[slot.id] || 1
+    })),
+    lordLevel: camp.setup.dungeon.lordLevel,
+    lordWeaponId: camp.setup.dungeon.lordWeaponId,
+    talents: camp.setup.dungeon.talents
+  };
 }
 
 function makeMember(record: HeroRecord, world: WorldModifiers, wave: number, king = false): PartyMember {
@@ -178,10 +201,9 @@ export function beginCampaign(
   const campaignNumber = Math.max(1, Math.min(CAMPAIGN_MAX, state.campaignNumber));
   const waveSize = waveSizeFor(campaignNumber);
   const tier = campaignTier(campaignNumber);
-  const gap = GAP[tier];
-  const totalDays = gap * CHECKPOINTS;
-  const checkpointDays: number[] = [];
-  for (let i = 1; i <= CHECKPOINTS; i++) checkpointDays.push(gap * i);
+  const milestones = MILESTONE_TABLE[tier];
+  const milestoneDays = milestones.map((m) => m.day);
+  const totalDays = milestones[milestones.length - 1].day;
 
   const dungeon: Dungeon = { ...toDungeon(state), lordLevel: Math.max(state.lordLevel, stage.lordLevel) };
   const level = Math.max(record.level, stage.heroLevel);
@@ -195,9 +217,8 @@ export function beginCampaign(
     setup: {
       campaignNumber,
       tier,
-      gap,
       totalDays,
-      checkpointDays,
+      milestoneDays,
       dungeon,
       stage: state.stage,
       tierScale: state.stage,
@@ -223,6 +244,10 @@ export function beginCampaign(
     log: [],
     record: [],
     totals: { gold: 0, souls: 0, goldStolen: 0, checkpointsCleared: 0, wavesLost: 0 },
+    wallet: { ...CAMPAIGN_START_WALLET },
+    runRooms: Array.from({ length: EDITABLE_ROOMS }, () => ({ kind: 'empty' as const })),
+    runLevels: {},
+    runUnlocked: [...CAMPAIGN_START_UNLOCKED],
     outcome: null
   };
 }
@@ -231,7 +256,7 @@ export function endCampaign(
   state: GameState,
   camp: CampaignState,
   rng: Rng
-): { state: GameState; fired: WorldEvent | null } {
+): { state: GameState; fired: WorldEvent | null; payout: { gold: number; souls: number } } {
   const outcome = camp.outcome || 'dungeonWin';
   const turned = tickWorld(state.world, camp.setup.stage, rng);
   const gold = Math.max(0, camp.totals.gold - camp.totals.goldStolen);
@@ -246,6 +271,24 @@ export function endCampaign(
     killedByTag: camp.party[0].killedByTag,
     survived: outcome !== 'dungeonWin'
   };
+
+  const milestonesTotal = camp.setup.milestoneDays.length;
+  const milestonesCleared = camp.setup.milestoneDays.filter((d) => d <= camp.day).length;
+  const payout = campaignPerformanceReward({
+    outcome,
+    daysSurvived: camp.day,
+    totalDays: camp.setup.totalDays,
+    milestonesCleared,
+    milestonesTotal,
+    checkpointsCleared: camp.totals.checkpointsCleared,
+    wavesLost: camp.totals.wavesLost,
+    goldEarned: camp.totals.gold,
+    soulsEarned: camp.totals.souls,
+    goldStolen: camp.totals.goldStolen,
+    eventsResolved: camp.log.length,
+    tier: camp.setup.tier,
+    campaignNumber: camp.setup.campaignNumber
+  } satisfies PerformanceInputs);
 
   let roster = state.roster;
   for (const m of camp.party) {
@@ -275,8 +318,8 @@ export function endCampaign(
     ...state,
     campaign: null,
     world: turned.world,
-    gold: state.gold + gold,
-    souls: state.souls + camp.totals.souls + challengeSouls(earned),
+    gold: state.gold + payout.gold,
+    souls: state.souls + payout.souls + challengeSouls(earned),
     roster,
     unlockedMilestones: [...state.unlockedMilestones, ...earned],
     hallOfFame: [...fame, ...state.hallOfFame].slice(0, FAME_MAX),
@@ -303,13 +346,13 @@ export function endCampaign(
     if (state.stage < STAGE_MAX) next.stage = state.stage + 1;
   }
 
-  return { state: next, fired: turned.fired };
+  return { state: next, fired: turned.fired, payout };
 }
 
 export interface Intel {
   tier: CampaignTier;
   totalDays: number;
-  gap: number;
+  milestones: MilestoneStop[];
   waveSize: number;
   pool: { defId: string; name: string; role: string }[];
   arthur: { defId: string; name: string; ability: string; blurb: string };
@@ -319,7 +362,7 @@ export interface Intel {
 export function campaignIntel(state: GameState, arthurDefId: string): Intel {
   const stage = stageDef(state.stage);
   const tier = campaignTier(state.campaignNumber);
-  const gap = GAP[tier];
+  const milestones = MILESTONE_TABLE[tier];
   const pool = (stage.heroPool.length > 0 ? stage.heroPool : HEROES.map((h) => h.id)).map((id) => {
     const d = heroDef(id);
     return { defId: id, name: d.name, role: d.role };
@@ -327,8 +370,8 @@ export function campaignIntel(state: GameState, arthurDefId: string): Intel {
   const a = heroDef(arthurDefId);
   return {
     tier,
-    totalDays: gap * CHECKPOINTS,
-    gap,
+    totalDays: milestones[milestones.length - 1].day,
+    milestones,
     waveSize: waveSizeFor(state.campaignNumber),
     pool,
     arthur: { defId: a.id, name: a.name, ability: a.ability.name, blurb: a.ability.blurb },
@@ -356,10 +399,7 @@ function advanceAll(camp: CampaignState, out: RaidEvent[]): void {
 function callBackup(camp: CampaignState, world: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
   camp.totals.wavesLost += 1;
   out.push({ t: 'waveWipe', wave: camp.waveIndex });
-  // If the only checkpoint left is the Throne, no relief column can reach it in
-  // time. Nobody else is coming, and the King arrives alone.
-  const nextCheckpoint = camp.setup.checkpointDays.find((d) => d > camp.day);
-  if (nextCheckpoint === undefined || nextCheckpoint >= camp.setup.totalDays || camp.waveIndex >= MAX_WAVES) {
+  if (camp.day >= camp.setup.totalDays - 1 || camp.waveIndex >= MAX_WAVES) {
     camp.backupPending = false;
     return;
   }
@@ -396,15 +436,26 @@ export function advanceDay(camp: CampaignState, world: WorldState): DayOutcome {
     decay: { ...camp.decay },
     log: camp.log.slice(),
     record: camp.record.slice(),
-    totals: { ...camp.totals }
+    totals: { ...camp.totals },
+    wallet: { ...camp.wallet },
+    runRooms: camp.runRooms.map((s) => ({ ...s })),
+    runLevels: { ...camp.runLevels },
+    runUnlocked: camp.runUnlocked.slice()
   };
 
   const out: RaidEvent[] = [];
   decayMods(next);
   const mods = modifiersFor(next, world);
+  const rng = dayRng(next, 2);
 
-  if (isCheckpointDay(next)) {
-    resolveCheckpoint(next, mods, out);
+  if (isFinalDay(next)) {
+    resolveFinalDay(next, mods, rng, out);
+  } else if (isCheckpointDay(next)) {
+    resolveMilestoneBattle(next, mods, rng, out);
+  } else if (isPrepDay(next)) {
+    resolveForcedPrep(next, rng);
+  } else if (rng() < RANDOM_BATTLE_CHANCE) {
+    resolveRandomBattle(next, mods, rng, out);
   } else {
     resolveDayEvent(next, out);
   }
@@ -501,6 +552,44 @@ function resolveDayEvent(camp: CampaignState, out: RaidEvent[]): void {
 export function commitChoice(camp: CampaignState, optionId: string, world: WorldState): DayOutcome {
   if (camp.status !== 'active' || !camp.pending) return { camp, events: [] };
 
+  if (camp.pending.kind === 'prep') {
+    const prep = camp.pending.prep;
+    if (!prep) return { camp, events: [] };
+    const next: CampaignState = {
+      ...camp,
+      mods: camp.mods.map((m) => ({ ...m })),
+      log: camp.log.slice(),
+      wallet: { ...camp.wallet },
+      runLevels: { ...camp.runLevels },
+      runUnlocked: camp.runUnlocked.slice()
+    };
+    let confirm: string;
+    if (optionId === 'merchant') {
+      next.wallet.gold = Math.max(0, next.wallet.gold - prep.merchantCost);
+      for (const id of [...prep.merchantTraps, prep.merchantMonster]) {
+        if (!next.runUnlocked.includes(id)) next.runUnlocked.push(id);
+      }
+      next.log.push({ day: next.day, kind: 'prep:merchant', text: 'Bought from the traveling merchant.' });
+      confirm = `The merchant hands over ${trapDef(prep.merchantTraps[0]).name}, ${trapDef(prep.merchantTraps[1]).name} and ${monsterDef(prep.merchantMonster).name}.`;
+    } else if (optionId === 'dwarf') {
+      next.runLevels[prep.dwarfTrapId] = (next.runLevels[prep.dwarfTrapId] || 1) + 1;
+      next.log.push({ day: next.day, kind: 'prep:dwarf', text: `The dwarf upgrades ${trapDef(prep.dwarfTrapId).name}.` });
+      confirm = `The dwarf upgrades ${trapDef(prep.dwarfTrapId).name} for the rest of the run.`;
+    } else if (optionId === 'party') {
+      next.mods = [
+        ...next.mods.filter((m) => m.id !== 'prep:party'),
+        { id: 'prep:party', source: 'choice' as const, label: 'Campfire Council', daysLeft: 4, effect: { heroAtk: 1.1, heroHp: 1.1 } }
+      ];
+      next.log.push({ day: next.day, kind: 'prep:party', text: 'The party rallies around the fire.' });
+      confirm = 'The party rallies around the fire, ready for what comes next.';
+    } else {
+      return { camp, events: [] };
+    }
+    next.pending = null;
+    next.dayBody = `${next.dayBody}\n\n${confirm}`;
+    return { camp: next, events: [] };
+  }
+
   if (camp.pending.kind === 'proc') {
     const proc = camp.pending.proc;
     if (!proc || (optionId !== 'amp' && optionId !== 'longer')) return { camp, events: [] };
@@ -549,18 +638,13 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
   return { camp: next, events: out };
 }
 
-function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidEvent[]): void {
-  const rng = dayRng(camp, 2);
-  const isThrone = camp.day >= camp.setup.totalDays || camp.checkpoint >= EDITABLE_ROOMS;
-  const index = isThrone ? EDITABLE_ROOMS : camp.checkpoint;
-  const label = isThrone ? 'the Throne Room' : `Room ${index + 1}`;
+function resolveFinalDay(camp: CampaignState, mods: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
+  const label = 'the Throne Room';
   camp.dayTone = 'battle';
   let wave = activeParty(camp);
 
-  if (isThrone && !camp.party.some((m) => m.king)) {
+  if (!camp.party.some((m) => m.king)) {
     const alone = wave.length === 0;
-    // Join the wave that actually arrived, not the muster counter: a suppressed
-    // backup can leave those two out of step, which would strand his Ward.
     const king = makeKing(camp, mods, alone ? camp.waveIndex : wave[0].wave);
     king.doubledEffect = alone;
     camp.party = [...camp.party, king];
@@ -584,54 +668,27 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     return;
   }
 
-  const wantsOut = isThrone ? [] : wave.filter((m) => wantsToFlee(m.hero, heroDef(m.hero.defId), rng));
-
-  if (wantsOut.length * 2 > wave.length) {
-    out.push({ t: 'decision', intent: 'flee', note: fleeNote(wantsOut[0].hero, heroDef(wantsOut[0].hero.defId)) });
-    out.push({ t: 'heroFlee', fromRoom: index });
-    out.push({ t: 'reaction', kind: 'panic' });
-    for (const m of wave) {
-      m.fled = true;
-      camp.totals.goldStolen += m.hero.looted;
-    }
-    camp.dayTitle = 'They Turn Back';
-    camp.dayBody = `The party breaks off short of ${label} and runs for the entrance.`;
-    camp.log.push({ day: camp.day, kind: 'flee', text: `Wave ${camp.waveIndex} withdrew from ${label}.` });
-    const reward = checkpointReward(camp.setup.tierScale, mods, true);
-    camp.totals.gold += reward.gold;
-    camp.totals.souls += reward.souls;
-    callBackup(camp, mods, dayRng(camp, 3), out);
-    return;
-  }
-
-  const built = isThrone
-    ? { slot: { kind: 'empty' as const }, level: 1 }
-    : camp.setup.dungeon.rooms[index] || { slot: { kind: 'empty' as const }, level: 1 };
-  const roomIndex = isThrone ? EDITABLE_ROOMS : index;
-
-  if (isThrone) out.push({ t: 'throneGuardian', id: camp.setup.guardianId });
+  out.push({ t: 'throneGuardian', id: camp.setup.guardianId });
 
   const res = runCheckpoint({
-    roomIndex,
-    built,
-    isThrone,
+    roomIndex: EDITABLE_ROOMS,
+    built: { slot: { kind: 'empty' as const }, level: 1 },
+    isThrone: true,
     party: wave.map((m) => ({
       hero: m.hero,
       def: heroDef(m.hero.defId),
       king: m.king,
       doubled: m.doubledEffect
     })),
-    runtime: camp.monsters[roomIndex],
+    runtime: camp.monsters[EDITABLE_ROOMS],
     world: mods,
     talents: camp.setup.dungeon.talents,
     rng,
-    lord: isThrone
-      ? {
-          level: camp.setup.dungeon.lordLevel,
-          weaponId: camp.setup.dungeon.lordWeaponId,
-          guardianId: camp.setup.guardianId
-        }
-      : null,
+    lord: {
+      level: camp.setup.dungeon.lordLevel,
+      weaponId: camp.setup.dungeon.lordWeaponId,
+      guardianId: camp.setup.guardianId
+    },
     killedByTag: null
   });
 
@@ -640,68 +697,277 @@ function resolveCheckpoint(camp: CampaignState, mods: WorldModifiers, out: RaidE
     clearCombatScoped(m.hero, out);
     if (m.hero.hp <= 0) m.alive = false;
   }
-  camp.monsters = camp.monsters.map((rt, i) => (i === roomIndex ? res.runtime : rt));
+  camp.monsters = camp.monsters.map((rt, i) => (i === EDITABLE_ROOMS ? res.runtime : rt));
 
   const reward = checkpointReward(camp.setup.tierScale, mods, res.wiped);
   camp.totals.gold += reward.gold;
   camp.totals.souls += reward.souls;
 
-  const fallen = wave.filter((m) => !m.alive).length;
-
   if (res.wiped) {
     if (res.killedByTag) camp.knowledge[res.killedByTag] = (camp.knowledge[res.killedByTag] || 0) + 1;
-    camp.dayTitle = isThrone ? 'Nekrokos Holds' : `${label} Holds`;
+    camp.dayTitle = 'Nekrokos Holds';
     camp.dayBody = `Wave ${camp.waveIndex} dies in ${label}. Word goes back for another.`;
     camp.log.push({ day: camp.day, kind: 'wipe', text: `Wave ${camp.waveIndex} wiped at ${label}.` });
-    if (isThrone) {
-      finish(camp, 'dungeonWin');
-      return;
-    }
-    callBackup(camp, mods, dayRng(camp, 4), out);
+    finish(camp, 'dungeonWin');
     return;
   }
 
   if (res.stalled) {
     queueProc(camp, res.procs);
-    out.push({ t: 'stalled', room: roomIndex });
+    out.push({ t: 'stalled', room: EDITABLE_ROOMS });
     camp.dayTitle = 'A Long Standoff';
-    camp.dayBody = isThrone
-      ? `Neither side breaks in ${label}. Nekrokos lets them go, and regroups at full strength for the next attempt.`
-      : `Neither side breaks in ${label}. The party pulls back to try again.`;
+    camp.dayBody = 'Neither side breaks in the Throne Room. Nekrokos lets them go, and regroups at full strength for the next attempt.';
     camp.log.push({ day: camp.day, kind: 'stall', text: `${label} ended in a standoff.` });
     return;
   }
 
   camp.totals.checkpointsCleared += 1;
-  camp.checkpoint = index + 1;
+  camp.checkpoint += 1;
+  camp.dayTitle = 'The Throne Falls';
+  camp.dayBody = 'Nekrokos goes down. What is left of the party walks out with your gold.';
+  camp.log.push({ day: camp.day, kind: 'breach', text: 'The Throne Room was breached.' });
+  for (const m of wave) if (m.alive) camp.totals.goldStolen += m.hero.looted;
+  finish(camp, 'heroVictory');
+}
 
-  if (isThrone) {
-    camp.dayTitle = 'The Throne Falls';
-    camp.dayBody = 'Nekrokos goes down. What is left of the party walks out with your gold.';
-    camp.log.push({ day: camp.day, kind: 'breach', text: 'The Throne Room was breached.' });
-    for (const m of wave) if (m.alive) camp.totals.goldStolen += m.hero.looted;
-    finish(camp, 'heroVictory');
+function resolveMilestoneBattle(camp: CampaignState, mods: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
+  const stop = milestoneAt(camp);
+  const kind = stop ? stop.kind : 'mini';
+  const label = kind === 'elite' ? 'the Elite Boss' : 'the Mini Boss';
+  const buff = MILESTONE_HERO_BUFF[kind];
+  const battleMods = buff === 1 ? mods : composeModifiers([mods, { heroAtk: buff, heroHp: buff }], CAMPAIGN_CLAMP);
+  camp.dayTone = 'battle';
+
+  let wave = activeParty(camp);
+  if (wave.length === 0) {
+    camp.dayTitle = 'No One Comes';
+    camp.dayBody = 'Your halls stay silent. Nobody arrives to test them today.';
+    camp.log.push({ day: camp.day, kind: 'empty-checkpoint', text: 'No party reached the gate.' });
     return;
   }
 
-  queueProc(camp, res.procs);
+  let fallenTotal = 0;
+  let outcome: 'cleared' | 'wiped' | 'fled' | 'stalled' = 'cleared';
+
+  for (let i = 0; i < EDITABLE_ROOMS; i++) {
+    wave = activeParty(camp);
+    if (wave.length === 0) {
+      outcome = 'wiped';
+      break;
+    }
+
+    const wantsOut = wave.filter((m) => wantsToFlee(m.hero, heroDef(m.hero.defId), rng));
+    if (wantsOut.length * 2 > wave.length) {
+      out.push({ t: 'decision', intent: 'flee', note: fleeNote(wantsOut[0].hero, heroDef(wantsOut[0].hero.defId)) });
+      out.push({ t: 'heroFlee', fromRoom: i });
+      out.push({ t: 'reaction', kind: 'panic' });
+      for (const m of wave) {
+        m.fled = true;
+        camp.totals.goldStolen += m.hero.looted;
+      }
+      outcome = 'fled';
+      break;
+    }
+
+    const built = liveDungeon(camp).rooms[i] || { slot: { kind: 'empty' as const }, level: 1 };
+    const res = runCheckpoint({
+      roomIndex: i,
+      built,
+      isThrone: false,
+      party: wave.map((m) => ({
+        hero: m.hero,
+        def: heroDef(m.hero.defId),
+        king: m.king,
+        doubled: m.doubledEffect
+      })),
+      runtime: camp.monsters[i],
+      world: battleMods,
+      talents: camp.setup.dungeon.talents,
+      rng,
+      lord: null,
+      killedByTag: null
+    });
+
+    for (const e of res.events) out.push(e);
+    for (const m of wave) {
+      clearCombatScoped(m.hero, out);
+      if (m.hero.hp <= 0) m.alive = false;
+    }
+    camp.monsters = camp.monsters.map((rt, idx) => (idx === i ? res.runtime : rt));
+
+    const reward = checkpointReward(camp.setup.tierScale, battleMods, !res.wiped);
+    camp.totals.gold += reward.gold;
+    camp.totals.souls += reward.souls;
+    fallenTotal += wave.filter((m) => !m.alive).length;
+
+    if (res.wiped) {
+      if (res.killedByTag) camp.knowledge[res.killedByTag] = (camp.knowledge[res.killedByTag] || 0) + 1;
+      outcome = 'wiped';
+      break;
+    }
+    if (res.stalled) {
+      queueProc(camp, res.procs);
+      outcome = 'stalled';
+      break;
+    }
+
+    camp.totals.checkpointsCleared += 1;
+    camp.checkpoint += 1;
+    queueProc(camp, res.procs);
+  }
+
+  if (outcome === 'fled') {
+    camp.dayTitle = 'They Turn Back';
+    camp.dayBody = `The party breaks off during ${label} and runs for the entrance.`;
+    camp.log.push({ day: camp.day, kind: 'flee', text: `Wave ${camp.waveIndex} withdrew from ${label}.` });
+    callBackup(camp, mods, dayRng(camp, 3), out);
+    return;
+  }
+  if (outcome === 'wiped') {
+    camp.dayTitle = `${label} Holds`;
+    camp.dayBody = `Wave ${camp.waveIndex} is broken during ${label}. Word goes back for another.`;
+    camp.log.push({ day: camp.day, kind: 'wipe', text: `Wave ${camp.waveIndex} wiped at ${label}.` });
+    callBackup(camp, mods, dayRng(camp, 4), out);
+    return;
+  }
+  if (outcome === 'stalled') {
+    camp.dayTitle = 'A Long Standoff';
+    camp.dayBody = `Neither side breaks during ${label}. The party pulls back to try again.`;
+    camp.log.push({ day: camp.day, kind: 'stall', text: `${label} ended in a standoff.` });
+    return;
+  }
 
   camp.dayTitle = `${label} Falls`;
   camp.dayBody =
-    fallen > 0
-      ? `The party clears ${label}, ${fallen} of them left behind, and moves deeper.`
-      : `The party clears ${label} intact and moves deeper.`;
+    fallenTotal > 0
+      ? `The party clears ${label}, ${fallenTotal} of them left behind, and pulls back from the gate.`
+      : `The party clears ${label} intact and pulls back from the gate.`;
   camp.log.push({
     day: camp.day,
-    kind: 'cleared',
-    text: fallen > 0 ? `${label} cleared; ${fallen} dead.` : `${label} cleared.`
+    kind: 'milestone',
+    text: fallenTotal > 0 ? `${label} cleared; ${fallenTotal} dead.` : `${label} cleared.`
   });
 }
 
-export type { CampaignModifier, CampaignSetup, CampaignState, DayOutcome, DayTone, PartyMember, PendingChoice } from './campaignState';
+const RANDOM_BATTLE_LEVEL_MULT: Record<MilestoneStop['kind'], number> = { mini: 1, elite: 1.15, final: 1.3 };
+
+function resolveRandomBattle(camp: CampaignState, mods: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
+  camp.dayTone = 'battle';
+  const ceiling = nextMilestone(camp);
+  const stage = stageDef(camp.setup.stage);
+  const pool = camp.setup.pool.length > 0 ? camp.setup.pool : HEROES.map((h) => h.id);
+  const defId = pool[Math.floor(rng() * pool.length) % pool.length];
+  const def = heroDef(defId);
+  const level = Math.round(stage.heroLevel * RANDOM_BATTLE_LEVEL_MULT[ceiling.kind]);
+  const record: HeroRecord = {
+    uid: 'rb' + camp.seed.toString(36) + camp.day,
+    defId,
+    name: makeName(defId, rng).name,
+    title: def.role,
+    level,
+    raids: 0,
+    deaths: 0,
+    scars: []
+  };
+  const result = simulateRaid(liveDungeon(camp), record, camp.setup.tierScale, { rng, world: mods });
+  for (const e of result.events) out.push(e);
+  camp.wallet.gold += result.gold;
+  camp.wallet.souls += result.souls;
+  camp.totals.gold += result.gold;
+  camp.totals.souls += result.souls;
+  if (result.outcome === 'dungeonWin') camp.totals.checkpointsCleared += 1;
+  camp.dayTitle = result.outcome === 'dungeonWin' ? 'An Opportunist Falls' : 'An Opportunist Tries Their Luck';
+  camp.dayBody =
+    result.outcome === 'dungeonWin'
+      ? `${record.name} the ${def.role} probes your dungeon and does not come back out.`
+      : `${record.name} the ${def.role} probes your dungeon and gets away with some of your gold.`;
+  camp.log.push({ day: camp.day, kind: 'random-battle', text: `${record.name} raided your dungeon.` });
+}
+
+function isPrepDay(camp: CampaignState): boolean {
+  return camp.setup.milestoneDays.includes(camp.day + 1);
+}
+
+function resolveForcedPrep(camp: CampaignState, rng: Rng): void {
+  camp.dayTone = 'neutral';
+  camp.dayTitle = 'The Road Splits';
+  camp.dayBody = 'Before the next trial, three offers reach your gate.';
+  const trapPool = TRAPS.filter((t) => !camp.runUnlocked.includes(t.id));
+  const monsterPool = MONSTERS.filter((m) => !camp.runUnlocked.includes(m.id));
+  const pickTrap = () =>
+    trapPool.length > 0
+      ? trapPool[Math.floor(rng() * trapPool.length) % trapPool.length].id
+      : TRAPS[Math.floor(rng() * TRAPS.length) % TRAPS.length].id;
+  const t1 = pickTrap();
+  let t2 = pickTrap();
+  let guard = 0;
+  while (t2 === t1 && trapPool.length > 1 && guard++ < 5) t2 = pickTrap();
+  const monster =
+    monsterPool.length > 0
+      ? monsterPool[Math.floor(rng() * monsterPool.length) % monsterPool.length].id
+      : MONSTERS[Math.floor(rng() * MONSTERS.length) % MONSTERS.length].id;
+  const merchantCost = 12 + camp.setup.campaignNumber * 2;
+
+  const placedTraps = camp.runRooms.filter((s) => s.kind === 'trap').map((s) => (s as { kind: 'trap'; id: string }).id);
+  const dwarfTrapId = placedTraps.length > 0 ? placedTraps[Math.floor(rng() * placedTraps.length) % placedTraps.length] : t1;
+
+  camp.pending = {
+    eventId: 'prep',
+    kind: 'prep',
+    title: 'The Road Splits',
+    body: 'Before the next trial, three offers reach your gate.',
+    options: [
+      {
+        id: 'merchant',
+        label: 'Traveling Merchant',
+        hint: `Buy ${trapDef(t1).name}, ${trapDef(t2).name} and ${monsterDef(monster).name} for ${merchantCost} gold.`
+      },
+      { id: 'dwarf', label: 'Wandering Dwarf', hint: `Upgrade ${trapDef(dwarfTrapId).name} for the rest of the run.` },
+      { id: 'party', label: 'Campfire Council', hint: 'A campaign-wide buff for a few days.' }
+    ],
+    prep: { merchantTraps: [t1, t2], merchantMonster: monster, merchantCost, dwarfTrapId }
+  };
+  camp.log.push({ day: camp.day, kind: 'prep', text: 'A prep-day offer reaches the gate.' });
+}
+
+function runIdCounts(rooms: RoomSlot[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const slot of rooms) {
+    if (slot.kind === 'empty') continue;
+    counts[slot.id] = (counts[slot.id] || 0) + 1;
+  }
+  return counts;
+}
+
+export function placeRunRoom(camp: CampaignState, index: number, slot: RoomSlot): CampaignState {
+  if (index < 0 || index >= EDITABLE_ROOMS) return camp;
+  if (slot.kind !== 'empty') {
+    const counts = runIdCounts(camp.runRooms);
+    const here = camp.runRooms[index];
+    const used = (counts[slot.id] || 0) - (here.kind !== 'empty' && here.id === slot.id ? 1 : 0);
+    if (used >= MAX_PER_ID) return camp;
+  }
+  const runRooms = camp.runRooms.slice();
+  runRooms[index] = slot;
+  return { ...camp, runRooms };
+}
+
+export function levelRunContent(camp: CampaignState, id: string, goldCost: number): CampaignState {
+  const level = camp.runLevels[id] || 1;
+  const cost = upgradeCost(goldCost, level);
+  if (camp.wallet.gold < cost) return camp;
+  return {
+    ...camp,
+    wallet: { ...camp.wallet, gold: camp.wallet.gold - cost },
+    runLevels: { ...camp.runLevels, [id]: level + 1 }
+  };
+}
+
+export type { CampaignModifier, CampaignSetup, CampaignState, DayOutcome, DayTone, MilestoneStop, PartyMember, PendingChoice } from './campaignState';
 export {
   CAMPAIGN_SHAPE,
   MAX_WAVES,
+  MILESTONE_TABLE,
   waveSizeFor,
   activeParty,
   campaignFamily,
@@ -710,6 +976,8 @@ export {
   familyEffect,
   familyHeroes,
   isCheckpointDay,
+  isFinalDay,
+  milestoneAt,
   normalizeCampaign
 } from './campaignState';
 export { dayEventWeights, eligibleEvents, upcomingTag, weightsFor } from './campaignEvents';

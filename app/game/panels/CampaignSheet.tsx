@@ -8,11 +8,12 @@ import { Sheet } from './Sheet';
 interface CampaignSheetProps {
   open: boolean;
   camp: CampaignState | null;
+  payout: { gold: number; souls: number } | null;
   news?: WorldEvent | null;
   onClose: () => void;
 }
 
-export function CampaignSheet({ open, camp, news, onClose }: CampaignSheetProps) {
+export function CampaignSheet({ open, camp, payout, news, onClose }: CampaignSheetProps) {
   const copy = camp && camp.outcome ? OUTCOME_COPY[camp.outcome] : null;
   const gold = camp ? Math.max(0, camp.totals.gold - camp.totals.goldStolen) : 0;
 
@@ -36,10 +37,8 @@ export function CampaignSheet({ open, camp, news, onClose }: CampaignSheetProps)
               <span className="stat-value">{camp.setup.totalDays}</span>
             </div>
             <div className="row inset stats">
-              <span className="stat-label">Checkpoints held</span>
-              <span className="stat-value">
-                {camp.setup.checkpointDays.length - camp.totals.checkpointsCleared}/{camp.setup.checkpointDays.length}
-              </span>
+              <span className="stat-label">Rooms cleared</span>
+              <span className="stat-value">{camp.totals.checkpointsCleared}</span>
             </div>
             <div className="row inset stats">
               <span className="stat-label">Waves lost</span>
@@ -58,6 +57,18 @@ export function CampaignSheet({ open, camp, news, onClose }: CampaignSheetProps)
                 <span className="stat-label">Gold stolen</span>
                 <span className="stat-value">-{camp.totals.goldStolen}</span>
               </div>
+            )}
+            {payout && (
+              <>
+                <div className="row inset stats">
+                  <span className="stat-label">Performance payout — Gold</span>
+                  <span className="stat-value">+{payout.gold}</span>
+                </div>
+                <div className="row inset stats">
+                  <span className="stat-label">Performance payout — Souls</span>
+                  <span className="stat-value">+{payout.souls}</span>
+                </div>
+              </>
             )}
           </div>
 

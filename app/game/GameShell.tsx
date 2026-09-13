@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
-import type { HeroRecord, RaidResult, RoomSlot, WorldEvent } from '../../game/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { HeroRecord, RoomSlot, WorldEvent } from '../../game/types';
 import { EDITABLE_ROOMS } from '../../game/types';
-import { STAGE_MAX, stageDef, unlockStageOf } from '../../game/content/stages';
-import { rushRamp, toDungeon, unlockSoulCost } from '../../game/state/economy';
-import { effectCount, tickWorld, worldModifiers } from '../../game/state/world';
-import { canPlace, unlockedFor, type GameState } from '../../game/state/save';
+import { stageDef } from '../../game/content/stages';
+import { effectCount } from '../../game/state/world';
+import type { GameState } from '../../game/state/save';
 import { settleRaid, stageCleared as didClearStage } from '../../game/state/raidOutcome';
 import {
   activeParty,
@@ -16,18 +15,23 @@ import {
   endCampaign,
   campaignIntel,
   isCheckpointDay,
+  isFinalDay,
+  levelRunContent,
+  placeRunRoom,
   type CampaignState
 } from '../../game/state/campaign';
 import { HEROES } from '../../game/content/heroes';
 import { TALENT_MAX } from '../../game/content/talents';
-import { simulateRaid } from '../../game/sim/raid';
 import { systemRng } from '../../game/sim/rng';
 import DungeonView from './DungeonView';
-import { BuildSheet } from './panels/BuildSheet';
+import { ClassicShell } from './ClassicShell';
 import { CodexSheet } from './panels/CodexSheet';
-import { DayPanel } from './panels/DayPanel';
+import { StatusPanel } from './panels/StatusPanel';
+import { RoomPrepView } from './panels/RoomPrepView';
+import { PastEventPanel } from './panels/PastEventPanel';
+import { PrepBuildSheet } from './panels/PrepBuildSheet';
 import { CampaignSheet } from './panels/CampaignSheet';
-import { RoomPlacementView } from './panels/RoomPlacementView';
+import { ArmoryView } from './panels/ArmoryView';
 import { CampaignIdle } from './panels/CampaignIdle';
 import { ExploreView } from './panels/ExploreView';
 import { IntelSheet } from './panels/IntelSheet';
@@ -37,45 +41,49 @@ import { TalentPanel } from './panels/TalentPanel';
 import { LordPickerSheet } from './panels/LordPickerSheet';
 import { ShopPanel } from './panels/ShopPanel';
 import { WorldSheet } from './panels/WorldSheet';
-import { Coach, MilestoneToast, OfflinePanel, ResultPanel, TUTORIAL, type MilestoneToastItem } from './overlays';
-import { milestoneLabel } from '../../game/content/milestones';
+import { Coach, MilestoneToast, OfflinePanel, TUTORIAL } from './overlays';
+import { useMilestoneToasts } from './useMilestoneToasts';
 import { ICON, artVars } from './art';
 import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'build' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'guardian' | null;
+type SheetKind = 'prepBuild' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'guardian' | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
 
-const MIN_WORLD_STAGE = 3;
-
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'shop', label: 'Shop', icon: ICON.gold },
-  { id: 'equipment', label: 'Rooms', icon: ICON.build },
+  { id: 'equipment', label: 'Armory', icon: ICON.build },
   { id: 'campaign', label: 'Campaign', icon: ICON.raid },
   { id: 'talent', label: 'Talents', icon: ICON.lord },
   { id: 'explore', label: 'Explore', icon: ICON.world }
+];
+
+type CampTab = 'status' | 'roomPrep' | 'pastEvent';
+
+const CAMP_TABS: { id: CampTab; label: string; icon: string }[] = [
+  { id: 'status', label: 'Status', icon: ICON.raid },
+  { id: 'roomPrep', label: 'Room Prep', icon: ICON.build },
+  { id: 'pastEvent', label: 'Past Event', icon: ICON.codex }
 ];
 
 export default function GameShell() {
   const { state, raider, offline, setOffline, update, rollRaider, resetState } = useGameState();
   const [selected, setSelected] = useState(0);
   const [sheet, setSheet] = useState<SheetKind>(null);
-  const [justPlaced, setJustPlaced] = useState(-1);
   const [news, setNews] = useState<WorldEvent | null>(null);
   const [report, setReport] = useState<CampaignState | null>(null);
-  const [result, setResult] = useState<RaidResult | null>(null);
-  const [resultOpen, setResultOpen] = useState(false);
-  const [stageCleared, setStageCleared] = useState(false);
+  const [reportPayout, setReportPayout] = useState<{ gold: number; souls: number } | null>(null);
   const [stepping, setStepping] = useState(false);
   const [battleStep, setBattleStep] = useState(false);
   const [tab, setTab] = useState<Tab>('campaign');
   const [equipTab, setEquipTab] = useState<'rooms' | 'upgrades'>('rooms');
+  const [campTab, setCampTab] = useState<CampTab>('status');
+  const [prepRoom, setPrepRoom] = useState(0);
   const [arthur, setArthur] = useState<string | null>(null);
-  const [activeToast, setActiveToast] = useState<MilestoneToastItem | null>(null);
-  const toastQueueRef = useRef<MilestoneToastItem[]>([]);
-  const toastBusyRef = useRef(false);
+  const [classicOpen, setClassicOpen] = useState(false);
+  const { activeToast, queueToasts } = useMilestoneToasts();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const { view, play, speed, setSpeed } = useRaidDirector(scrollRef);
@@ -95,6 +103,10 @@ export default function GameShell() {
     [update]
   );
 
+  useEffect(() => {
+    if (camp?.pending) setCampTab('status');
+  }, [camp?.pending]);
+
   if (!state || !raider) {
     return (
       <div className="app" style={artVars}>
@@ -103,64 +115,21 @@ export default function GameShell() {
     );
   }
 
+  if (classicOpen) {
+    return <ClassicShell state={state} update={update} onExit={() => setClassicOpen(false)} onReset={resetGame} />;
+  }
+
   const stage = stageDef(state.stage);
-  const filled = state.rooms.filter((r) => r.kind !== 'empty').length;
 
-  function stepToast() {
-    const next = toastQueueRef.current.shift();
-    if (!next) {
-      toastBusyRef.current = false;
-      setActiveToast(null);
-      return;
-    }
-    toastBusyRef.current = true;
-    setActiveToast(next);
-    sfx('coin');
-    setTimeout(stepToast, 2600);
-  }
-
-  function queueToasts(ids: string[]) {
-    const items = ids.map(milestoneLabel).filter((x): x is MilestoneToastItem => x !== null);
-    if (items.length === 0) return;
-    toastQueueRef.current.push(...items);
-    if (!toastBusyRef.current) stepToast();
-  }
-
-  function place(slot: RoomSlot) {
-    if (selected < 0 || selected >= EDITABLE_ROOMS) return;
-    const target = selected;
-    update((s) => {
-      if (slot.kind !== 'empty' && !canPlace(s.rooms, target, slot.id)) return s;
-      const rooms = s.rooms.slice();
-      rooms[target] = slot;
-      return { ...s, rooms };
-    });
-    setJustPlaced(target);
-    setTimeout(() => setJustPlaced(-1), 400);
+  function placeInPrep(slot: RoomSlot) {
+    if (!camp) return;
+    update((s) => (s.campaign ? { ...s, campaign: placeRunRoom(s.campaign, prepRoom, slot) } : s));
     setSheet(null);
     sfx('place');
-    if (state && state.tutorial === 0) advanceTutorial(0);
-    else if (state && state.tutorial === 1 && filled + 1 >= 3) advanceTutorial(1);
   }
 
-  function buyUnlock(id: string, goldCost: number) {
-    update((s) => {
-      if (s.bought.includes(id)) return s;
-      const price = unlockSoulCost(goldCost, unlockStageOf(id), s.stage);
-      if (s.souls < price) return s;
-      const bought = [...s.bought, id];
-      return {
-        ...s,
-        souls: s.souls - price,
-        bought,
-        unlocked: [...new Set([...unlockedFor(Math.max(s.stage, s.maxStageCleared + 1)), ...bought])]
-      };
-    });
-    sfx('coin');
-  }
-
-  function upgrade(id: string, cost: number) {
-    update((s) => (s.gold < cost ? s : { ...s, gold: s.gold - cost, levels: { ...s.levels, [id]: (s.levels[id] || 1) + 1 } }));
+  function levelPrep(id: string, goldCost: number) {
+    update((s) => (s.campaign ? { ...s, campaign: levelRunContent(s.campaign, id, goldCost) } : s));
     sfx('place');
   }
 
@@ -199,58 +168,6 @@ export default function GameShell() {
     if (kind === 'world') update((s) => (s.world.unread === 0 ? s : { ...s, world: { ...s.world, unread: 0 } }));
   }
 
-  async function startRaid(mode: GameState['mode']) {
-    if (locked || !state || !raider) return;
-    startAmbient();
-    sfx('door');
-
-    const arcade = mode === 'arcade';
-    // The hero pool is mode-dependent, so draw for the mode being started
-    // rather than the one the save is still in.
-    const drawn = mode === state.mode ? raider : rollRaider({ ...state, mode });
-    const heroLevel = arcade ? 1 + Math.floor((state.wave - 1) / 2) : stage.heroLevel;
-    const record: HeroRecord = { ...drawn, level: Math.max(drawn.level, heroLevel) };
-    const lordLevel = arcade ? state.lordLevel + Math.floor(state.wave / 4) : Math.max(state.lordLevel, stage.lordLevel);
-    const dungeon = { ...toDungeon(state), lordLevel };
-    const tier = arcade ? state.wave : state.stage;
-    const world = worldModifiers(state.world);
-    if (!arcade) {
-      const ramp = rushRamp(state.stage, STAGE_MAX);
-      world.heroAtk *= ramp;
-      world.heroHp *= ramp;
-    }
-    const raidResult = simulateRaid(dungeon, record, tier, { world });
-
-    setStepping(true);
-    setBattleStep(true);
-    await new Promise((r) => setTimeout(r, 0));
-    await play(raidResult.events, [
-      { name: record.name, defId: record.defId, hp: raidResult.hero.maxHp, maxHp: raidResult.hero.maxHp }
-    ]);
-    setBattleStep(false);
-    setStepping(false);
-
-    const turned = tickWorld(state.world, arcade ? MIN_WORLD_STAGE : state.stage, systemRng);
-    const settlement = { mode, record, dungeon, result: raidResult, world: turned.world };
-    const cleared = didClearStage(state, settlement);
-    const settled = settleRaid(state, settlement);
-    const earned = settled.unlockedMilestones.filter((id) => !state.unlockedMilestones.includes(id));
-    update(() => settled);
-    queueToasts(earned);
-
-    setResult(raidResult);
-    setStageCleared(cleared);
-    setNews(turned.fired);
-    setResultOpen(true);
-  }
-
-  function closeResult() {
-    if (!state) return;
-    setResultOpen(false);
-    sfx('tap');
-    rollRaider(state);
-  }
-
   function openUpgrades() {
     setEquipTab('upgrades');
     sfx('tap');
@@ -284,7 +201,7 @@ export default function GameShell() {
     if (busy || !state || !camp || camp.pending) return;
     const battle = isCheckpointDay(camp);
     const wave = activeParty(camp);
-    const fromRoom = Math.max(-1, camp.checkpoint - 1);
+    const fromRoom = isFinalDay(camp) ? EDITABLE_ROOMS - 1 : -1;
     setStepping(true);
     if (battle) {
       // Mount the dungeon before playback: the director captures scrollRef
@@ -322,6 +239,7 @@ export default function GameShell() {
     const earned = done.state.unlockedMilestones.filter((id) => !state.unlockedMilestones.includes(id));
     update(() => done.state);
     setReport(camp);
+    setReportPayout(done.payout);
     setNews(done.fired);
     setSheet('report');
     sfx(camp.outcome === 'dungeonWin' ? 'win' : camp.outcome === 'heroEscape' ? 'escape' : 'lose');
@@ -335,8 +253,6 @@ export default function GameShell() {
     setSelected(0);
     setSheet(null);
     setReport(null);
-    setResult(null);
-    setResultOpen(false);
     sfx('lose');
   }
 
@@ -389,16 +305,13 @@ export default function GameShell() {
 
       {battleMode && (
         <DungeonView
-        rooms={state.rooms}
-        levels={state.levels}
+        rooms={camp ? camp.runRooms : state.rooms}
+        levels={camp ? camp.runLevels : state.levels}
         selected={selected}
-        justPlaced={justPlaced}
+        justPlaced={-1}
         view={view}
         scrollRef={scrollRef}
-        onSelect={(i) => {
-          setSelected(i);
-          if (i >= 0 && i < EDITABLE_ROOMS) openSheet('build');
-        }}
+        onSelect={setSelected}
         onScrollRoom={setSelected}
         speed={speed}
         onSpeed={() => setSpeed(speed >= 8 ? 1 : speed * 2)}
@@ -416,7 +329,7 @@ export default function GameShell() {
                 sfx('tap');
               }}
             >
-              Rooms
+              Overview
             </button>
             <button
               className={'subtab btn' + (equipTab === 'upgrades' ? ' on' : '')}
@@ -426,7 +339,7 @@ export default function GameShell() {
             </button>
           </div>
           {equipTab === 'rooms' ? (
-            <RoomPlacementView
+            <ArmoryView
               state={state}
               guardianLocked={onCampaign}
               onPickWeapon={() => {
@@ -438,17 +351,9 @@ export default function GameShell() {
                 setTab('talent');
                 sfx('tap');
               }}
-              onPickRoom={(i) => {
-                setSelected(i);
-                openSheet('build');
-              }}
             />
           ) : (
-            <UpgradePanel
-              state={state}
-              onUpgrade={upgrade}
-              onLord={upgradeLord}
-            />
+            <UpgradePanel state={state} onLord={upgradeLord} />
           )}
         </div>
       )}
@@ -458,16 +363,42 @@ export default function GameShell() {
       )}
       {!takeover && tab === 'talent' && <TalentPanel state={state} onBuy={buyTalent} />}
       {!takeover && tab === 'explore' && (
-        <ExploreView
-          state={state}
-          locked={locked}
-          onRush={() => startRaid('rush')}
-          onArcade={() => startRaid('arcade')}
-        />
+        <ExploreView locked={locked} onClassic={() => setClassicOpen(true)} />
       )}
 
       {campaignMode && camp && (
-        <DayPanel camp={camp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishCampaign} />
+        <>
+          {campTab === 'status' && (
+            <StatusPanel camp={camp} busy={busy} onChoose={choose} onNextDay={nextDay} onFinish={finishCampaign} />
+          )}
+          {campTab === 'roomPrep' && (
+            <RoomPrepView
+              camp={camp}
+              onPickRoom={(i) => {
+                setPrepRoom(i);
+                openSheet('prepBuild');
+              }}
+              onLevel={levelPrep}
+            />
+          )}
+          {campTab === 'pastEvent' && <PastEventPanel camp={camp} />}
+          <nav className="tabbar">
+            {CAMP_TABS.map((t) => (
+              <button
+                key={t.id}
+                className={'navtab' + (campTab === t.id ? ' on' : '')}
+                onClick={() => {
+                  setCampTab(t.id);
+                  sfx('tap');
+                }}
+                aria-pressed={campTab === t.id}
+              >
+                <img src={t.icon} alt="" />
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        </>
       )}
 
       {!takeover && tab === 'campaign' && (
@@ -498,14 +429,17 @@ export default function GameShell() {
         </nav>
       )}
 
-      <BuildSheet
-        open={sheet === 'build'}
-        room={Math.max(0, Math.min(EDITABLE_ROOMS - 1, selected))}
-        state={state}
-        onClose={closeSheet}
-        onPlace={place}
-        onBuy={buyUnlock}
-      />
+      {camp && (
+        <PrepBuildSheet
+          open={sheet === 'prepBuild'}
+          room={Math.max(0, Math.min(EDITABLE_ROOMS - 1, prepRoom))}
+          rooms={camp.runRooms}
+          levels={camp.runLevels}
+          unlocked={camp.runUnlocked}
+          onClose={closeSheet}
+          onPlace={placeInPrep}
+        />
+      )}
       <LordPickerSheet
         open={sheet === 'guardian'}
         state={state}
@@ -527,14 +461,12 @@ export default function GameShell() {
         onStart={startCampaign}
         onClose={closeSheet}
       />
-      <CampaignSheet open={sheet === 'report'} camp={report} news={sheet === 'report' ? news : null} onClose={closeSheet} />
-      <ResultPanel
-        open={resultOpen}
-        result={result}
-        stageCleared={stageCleared}
-        nextBrief={stage.teaches}
-        news={news}
-        onClose={closeResult}
+      <CampaignSheet
+        open={sheet === 'report'}
+        camp={report}
+        payout={reportPayout}
+        news={sheet === 'report' ? news : null}
+        onClose={closeSheet}
       />
       <OfflinePanel report={offline} onClose={() => setOffline(null)} />
       <Coach step={state.tutorial} hidden={coachHidden || state.tutorial >= TUTORIAL.length} />

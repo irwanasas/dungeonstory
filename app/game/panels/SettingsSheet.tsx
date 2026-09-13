@@ -19,8 +19,8 @@ const STATS: { label: string; value: (s: GameState) => string }[] = [
   { label: 'Dungeon breached', value: (s) => String(s.stats.lost) },
   { label: 'Gold earned', value: (s) => `${s.stats.goldEarned}g` },
   { label: 'Gold stolen from you', value: (s) => `${s.stats.goldStolen}g` },
-  { label: 'Stages cleared', value: (s) => `${s.maxStageCleared}/${STAGE_MAX}` },
-  { label: 'Best arcade wave', value: (s) => String(s.bestWave) },
+  { label: 'Stages cleared', value: (s) => `${s.classic.maxStageCleared}/${STAGE_MAX}` },
+  { label: 'Best arcade wave', value: (s) => String(s.classic.bestWave) },
   { label: 'Dungeon Lord level', value: (s) => `Lv${s.lordLevel}` },
   { label: 'Veterans remembered', value: (s) => String(s.roster.length) }
 ];

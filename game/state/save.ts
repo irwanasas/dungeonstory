@@ -27,6 +27,16 @@ export interface LegacyEntry {
   achievedAt: number;
 }
 
+export interface ClassicState {
+  mode: 'rush' | 'arcade';
+  gold: number;
+  souls: number;
+  stage: number;
+  maxStageCleared: number;
+  wave: number;
+  bestWave: number;
+}
+
 export interface GameState {
   version: number;
   gold: number;
@@ -55,6 +65,7 @@ export interface GameState {
   guardianId: string;
   campaignNumber: number;
   bestDaysByCampaign: Record<number, number>;
+  classic: ClassicState;
 }
 
 const KEY = 'own_a_dungeon_v1';
@@ -83,6 +94,33 @@ function keepSlot(slot: RoomSlot): boolean {
 
 function emptyRooms(): RoomSlot[] {
   return Array.from({ length: EDITABLE_ROOMS }, () => ({ kind: 'empty' as const }));
+}
+
+export function defaultClassicState(): ClassicState {
+  return {
+    mode: 'rush',
+    gold: 30,
+    souls: 0,
+    stage: 1,
+    maxStageCleared: 0,
+    wave: 1,
+    bestWave: 0
+  };
+}
+
+function normalizeClassicState(input: unknown): ClassicState {
+  const base = defaultClassicState();
+  if (!input || typeof input !== 'object') return base;
+  const c = input as Partial<ClassicState>;
+  return {
+    mode: c.mode === 'arcade' ? 'arcade' : 'rush',
+    gold: typeof c.gold === 'number' ? c.gold : base.gold,
+    souls: typeof c.souls === 'number' ? c.souls : base.souls,
+    stage: typeof c.stage === 'number' ? Math.max(1, Math.min(STAGES.length, Math.floor(c.stage))) : base.stage,
+    maxStageCleared: typeof c.maxStageCleared === 'number' ? c.maxStageCleared : base.maxStageCleared,
+    wave: typeof c.wave === 'number' ? c.wave : base.wave,
+    bestWave: typeof c.bestWave === 'number' ? c.bestWave : base.bestWave
+  };
 }
 
 export function idCounts(rooms: RoomSlot[]): Record<string, number> {
@@ -141,7 +179,8 @@ export function defaultState(): GameState {
     campaign: null,
     guardianId: GUARDIANS[0].id,
     campaignNumber: 1,
-    bestDaysByCampaign: {}
+    bestDaysByCampaign: {},
+    classic: defaultClassicState()
   };
 }
 
@@ -180,6 +219,7 @@ function normalize(input: (Partial<GameState> & { kingLevel?: number }) | null):
   merged.stage = Math.max(1, Math.min(STAGES.length, Math.floor(merged.stage) || 1));
   merged.bought = merged.bought.filter((id) => !RETIRED_CONTENT.has(id));
   merged.unlocked = unlockedFor(merged.stage);
+  merged.classic = normalizeClassicState(saved.classic);
   return merged;
 }
 

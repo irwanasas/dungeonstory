@@ -1,6 +1,5 @@
 'use client';
 
-import { CHECKPOINTS } from '../../../game/types';
 import type { DayTone, CampaignState } from '../../../game/state/campaign';
 import { activeParty, daysToCheckpoint, isCheckpointDay } from '../../../game/state/campaign';
 import { statusDef } from '../../../game/content/statuses';
@@ -69,7 +68,8 @@ export function DayPanel({ camp, busy, onChoose, onNextDay, onFinish }: DayPanel
           <span className="story-of">/{camp.setup.totalDays}</span>
         </span>
         <span className="story-track">
-          {Math.min(camp.checkpoint + 1, CHECKPOINTS)} of {CHECKPOINTS} · {ahead}
+          {camp.setup.milestoneDays.filter((d) => d <= camp.day).length} of {camp.setup.milestoneDays.length}{' '}
+          milestones · {ahead}
         </span>
       </div>
 

@@ -19,8 +19,14 @@ export function IntelSheet({ open, intel, guardianId, onStart, onClose }: IntelS
       {intel && (
         <>
           <p className="sheet-rule">
-            {intel.totalDays} days of road, six checkpoints, {intel.gap} days between each. They come in waves of{' '}
-            {intel.waveSize}. Nekrokos waits at Level {intel.lordLevel}.
+            {intel.totalDays} days of road —{' '}
+            {intel.milestones.map((m, i) => (
+              <span key={m.day}>
+                {i > 0 ? ', ' : ''}
+                Day {m.day} {m.kind === 'mini' ? 'Mini Boss' : m.kind === 'elite' ? 'Elite Boss' : 'the Throne'}
+              </span>
+            ))}
+            . They come in waves of {intel.waveSize}. Nekrokos waits at Level {intel.lordLevel}.
           </p>
 
           <div className="sheet-group">

@@ -1,4 +1,4 @@
-import type { Outcome, WorldModifiers } from '../types';
+import type { CampaignTier, Outcome, WorldModifiers } from '../types';
 import { talentBonus } from '../content/talents';
 import type { GameState } from './save';
 
@@ -54,10 +54,62 @@ export function checkpointReward(tier: number, world: WorldModifiers, held: bool
 }
 
 export function dungeonPower(state: GameState): number {
-  return (
-    state.rooms.reduce((sum, slot) => (slot.kind === 'empty' ? sum : sum + (state.levels[slot.id] || 1)), 0) +
-    state.lordLevel
-  );
+  return state.lordLevel + state.talentLevel + Math.max(0, state.unlockedLordWeapons.length - 1);
+}
+
+export interface PerformanceInputs {
+  outcome: Outcome;
+  daysSurvived: number;
+  totalDays: number;
+  milestonesCleared: number;
+  milestonesTotal: number;
+  checkpointsCleared: number;
+  wavesLost: number;
+  goldEarned: number;
+  soulsEarned: number;
+  goldStolen: number;
+  eventsResolved: number;
+  tier: CampaignTier;
+  campaignNumber: number;
+}
+
+const TIER_MULT: Record<CampaignTier, number> = { early: 1, mid: 1.4, late: 1.9 };
+const MIN_ON_LOSS = { gold: 8, souls: 1 };
+
+export const PERF_WEIGHTS = {
+  survival: 18,
+  milestone: 22,
+  battle: 14,
+  economy: 0.35,
+  events: 2,
+  soulsPerMilestone: 2,
+  soulsPerBattle: 0.6
+};
+
+export function campaignPerformanceReward(input: PerformanceInputs): { gold: number; souls: number } {
+  const survivalPct = Math.max(0, Math.min(1, input.daysSurvived / Math.max(1, input.totalDays)));
+  const milestonePct = input.milestonesTotal > 0 ? input.milestonesCleared / input.milestonesTotal : 0;
+  const battleHeld = Math.max(0, input.checkpointsCleared - input.wavesLost);
+  const tierMult = TIER_MULT[input.tier];
+
+  let gold =
+    (survivalPct * PERF_WEIGHTS.survival +
+      milestonePct * PERF_WEIGHTS.milestone +
+      battleHeld * PERF_WEIGHTS.battle +
+      input.eventsResolved * PERF_WEIGHTS.events) *
+      tierMult +
+    Math.max(0, input.goldEarned - input.goldStolen) * PERF_WEIGHTS.economy;
+
+  let souls = (input.milestonesCleared * PERF_WEIGHTS.soulsPerMilestone + battleHeld * PERF_WEIGHTS.soulsPerBattle) * tierMult;
+
+  if (input.outcome === 'dungeonWin') {
+    gold *= 0.55;
+    souls *= 0.55;
+  }
+
+  gold = Math.max(MIN_ON_LOSS.gold * tierMult, Math.round(gold));
+  souls = Math.max(MIN_ON_LOSS.souls, Math.round(souls));
+  return { gold, souls };
 }
 
 export function toDungeon(state: {

@@ -47,7 +47,7 @@ export function BuildSheet({ open, room, state, onClose, onPlace, onBuy }: Build
           <div className="sheet-group">{g.label}</div>
           {g.items.map((item) => {
             const owned = state.unlocked.includes(item.id);
-            const souls = unlockSoulCost(item.goldCost, unlockStageOf(item.id), state.stage);
+            const souls = unlockSoulCost(item.goldCost, unlockStageOf(item.id), state.classic.stage);
             const lvl = state.levels[item.id] || 1;
             if (owned) {
               const used = elsewhere(item.id);
@@ -85,7 +85,7 @@ export function BuildSheet({ open, room, state, onClose, onPlace, onBuy }: Build
                 </button>
               );
             }
-            const affordable = state.souls >= souls;
+            const affordable = state.classic.souls >= souls;
             return (
               <div key={item.id} className="row inset locked">
                 <img src={ICON.lock} alt="" />

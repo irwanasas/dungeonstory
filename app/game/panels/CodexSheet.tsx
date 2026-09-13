@@ -19,7 +19,7 @@ const TABS: { id: CodexTab; label: string }[] = [
 
 export function CodexSheet({ open, state, onClose }: { open: boolean; state: GameState; onClose: () => void }) {
   const [tab, setTab] = useState<CodexTab>('dungeon');
-  const stage = STAGES[Math.min(STAGES.length, Math.max(1, state.stage)) - 1];
+  const stage = STAGES[Math.min(STAGES.length, Math.max(1, state.classic.stage)) - 1];
   const found = TROPHIES.filter((t) => state.unlockedMilestones.includes(t.id)).length;
   const done = CHALLENGES.filter((c) => state.unlockedMilestones.includes(c.id)).length;
 
@@ -35,7 +35,7 @@ export function CodexSheet({ open, state, onClose }: { open: boolean; state: Gam
 
       {tab === 'dungeon' && (
         <>
-          {state.mode === 'rush' && (
+          {state.classic.mode === 'rush' && (
             <>
               <div className="sheet-group">This Stage</div>
               <div className="row plate">

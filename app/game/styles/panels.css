@@ -542,6 +542,45 @@ a.row.link {
   margin: auto 0;
 }
 
+.armory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-areas: 'wpn core grd';
+  gap: 6px;
+  flex: 0 1 auto;
+  margin: auto auto 10px;
+}
+
+.armory-throne {
+  width: 100%;
+  max-width: 200px;
+  margin: 0 auto;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.status {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.status > .row.stats {
+  flex: 0 0 auto;
+  margin: 0 12px 6px;
+  flex-shrink: 0;
+}
+
+.status > .story {
+  flex: 1 1 auto;
+}
+
 .place-slot {
   position: relative;
   display: flex;

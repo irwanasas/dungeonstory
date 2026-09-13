@@ -7,18 +7,38 @@ import type {
   MonsterRuntime,
   Outcome,
   RaidEvent,
+  RoomSlot,
   StatusKind,
   Tag,
   WorldEffect
 } from '../types';
-import { CAMPAIGN_MAX, CHECKPOINTS, EDITABLE_ROOMS } from '../types';
+import { CAMPAIGN_MAX, EDITABLE_ROOMS } from '../types';
 import { dayEvent } from '../content/dayEvents';
 import { NO_TALENTS } from '../content/talents';
 import { HEROES } from '../content/heroes';
 
-export const CAMPAIGN_SHAPE = 3;
+export const CAMPAIGN_SHAPE = 4;
 
-export const GAP: Record<CampaignTier, number> = { early: 3, mid: 4, late: 5 };
+export interface MilestoneStop {
+  day: number;
+  kind: 'mini' | 'elite' | 'final';
+}
+
+export const MILESTONE_TABLE: Record<CampaignTier, MilestoneStop[]> = {
+  early: [
+    { day: 10, kind: 'mini' },
+    { day: 20, kind: 'final' }
+  ],
+  mid: [
+    { day: 20, kind: 'mini' },
+    { day: 40, kind: 'final' }
+  ],
+  late: [
+    { day: 20, kind: 'mini' },
+    { day: 40, kind: 'elite' },
+    { day: 60, kind: 'final' }
+  ]
+};
 
 const FAMILY_CYCLE: HeroFamily[] = ['warrior', 'rogue', 'mage'];
 
@@ -37,7 +57,7 @@ export function waveSizeFor(n: number): number {
 }
 
 export function campaignTier(n: number): CampaignTier {
-  return n <= 3 ? 'early' : n <= 6 ? 'mid' : 'late';
+  return n <= 3 ? 'early' : n <= 7 ? 'mid' : 'late';
 }
 
 export function familyEffect(n: number): WorldEffect {
@@ -47,9 +67,8 @@ export function familyEffect(n: number): WorldEffect {
 export interface CampaignSetup {
   campaignNumber: number;
   tier: CampaignTier;
-  gap: number;
   totalDays: number;
-  checkpointDays: number[];
+  milestoneDays: number[];
   dungeon: Dungeon;
   stage: number;
   tierScale: number;
@@ -79,11 +98,12 @@ export interface CampaignModifier {
 
 export interface PendingChoice {
   eventId: string;
-  kind: 'choice' | 'altar' | 'ecosystem' | 'proc';
+  kind: 'choice' | 'altar' | 'ecosystem' | 'proc' | 'prep';
   title: string;
   body: string;
   options: { id: string; label: string; hint: string }[];
   proc?: { kind: StatusKind; uid: string; trapId: string };
+  prep?: { merchantTraps: string[]; merchantMonster: string; merchantCost: number; dwarfTrapId: string };
 }
 
 export interface ExpLogEntry {
@@ -114,8 +134,16 @@ export interface CampaignState {
   log: ExpLogEntry[];
   record: RaidEvent[];
   totals: { gold: number; souls: number; goldStolen: number; checkpointsCleared: number; wavesLost: number };
+  wallet: { gold: number; souls: number };
+  runRooms: RoomSlot[];
+  runLevels: Record<string, number>;
+  runUnlocked: string[];
   outcome: Outcome | null;
 }
+
+export const CAMPAIGN_START_UNLOCKED = ['spike', 'goblin'];
+
+export const CAMPAIGN_START_WALLET = { gold: 50, souls: 10 };
 
 export type DayTone = 'blessed' | 'cursed' | 'neutral' | 'omen' | 'battle';
 
@@ -130,8 +158,10 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   const setup = e.setup;
   if (e.shape !== CAMPAIGN_SHAPE) return null;
   if (!setup || typeof setup !== 'object') return null;
-  if (!Array.isArray(setup.checkpointDays) || setup.checkpointDays.length !== CHECKPOINTS) return null;
-  if (typeof setup.totalDays !== 'number' || setup.totalDays < CHECKPOINTS) return null;
+  if (!Array.isArray(setup.milestoneDays) || setup.milestoneDays.length < 2 || setup.milestoneDays.length > 3)
+    return null;
+  if (typeof setup.totalDays !== 'number' || setup.totalDays !== setup.milestoneDays[setup.milestoneDays.length - 1])
+    return null;
   if (typeof setup.campaignNumber !== 'number' || setup.campaignNumber < 1 || setup.campaignNumber > CAMPAIGN_MAX)
     return null;
   if (!setup.dungeon || !Array.isArray(setup.dungeon.rooms)) return null;
@@ -141,20 +171,42 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   if (!Array.isArray(e.monsters) || e.monsters.length !== EDITABLE_ROOMS + 1) return null;
   if (e.status !== 'active' && e.status !== 'complete') return null;
   if (e.pending && (!Array.isArray(e.pending.options) || e.pending.options.length === 0)) return null;
-  if (e.pending && e.pending.kind !== 'proc' && !dayEvent(e.pending.eventId)) return null;
+  if (e.pending && e.pending.kind !== 'proc' && e.pending.kind !== 'prep' && !dayEvent(e.pending.eventId)) return null;
   if (e.pending && e.pending.kind === 'proc' && !e.pending.proc) return null;
+  if (e.pending && e.pending.kind === 'prep' && !e.pending.prep) return null;
   for (const m of e.party) {
     if (!m || !m.hero || typeof m.hero.hp !== 'number' || !Array.isArray(m.hero.status)) return null;
   }
+  if (!e.wallet || typeof e.wallet.gold !== 'number' || typeof e.wallet.souls !== 'number') {
+    e.wallet = { ...CAMPAIGN_START_WALLET };
+  }
+  if (!Array.isArray(e.runRooms) || e.runRooms.length !== EDITABLE_ROOMS) {
+    e.runRooms = Array.from({ length: EDITABLE_ROOMS }, () => ({ kind: 'empty' as const }));
+  }
+  if (!e.runLevels || typeof e.runLevels !== 'object') e.runLevels = {};
+  if (!Array.isArray(e.runUnlocked)) e.runUnlocked = [...CAMPAIGN_START_UNLOCKED];
   return e as CampaignState;
 }
 
 export function isCheckpointDay(camp: CampaignState): boolean {
-  return camp.setup.checkpointDays.includes(camp.day);
+  return camp.setup.milestoneDays.includes(camp.day);
+}
+
+export function isFinalDay(camp: CampaignState): boolean {
+  return camp.day >= camp.setup.totalDays;
+}
+
+export function milestoneAt(camp: CampaignState): MilestoneStop | undefined {
+  return MILESTONE_TABLE[camp.setup.tier].find((m) => m.day === camp.day);
+}
+
+export function nextMilestone(camp: CampaignState): MilestoneStop {
+  const table = MILESTONE_TABLE[camp.setup.tier];
+  return table.find((m) => m.day > camp.day) ?? table[table.length - 1];
 }
 
 export function daysToCheckpoint(camp: CampaignState): number {
-  for (const d of camp.setup.checkpointDays) if (d >= camp.day) return d - camp.day;
+  for (const d of camp.setup.milestoneDays) if (d >= camp.day) return d - camp.day;
   return 0;
 }
 
