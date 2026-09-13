@@ -147,9 +147,18 @@ export const CAMPAIGN_START_WALLET = { gold: 50, souls: 10 };
 
 export type DayTone = 'blessed' | 'cursed' | 'neutral' | 'omen' | 'battle';
 
+export interface BattleSeed {
+  name: string;
+  defId: string;
+  hp: number;
+  maxHp: number;
+}
+
 export interface DayOutcome {
   camp: CampaignState;
   events: RaidEvent[];
+  battle?: boolean;
+  seeds?: BattleSeed[];
 }
 
 export function normalizeCampaign(input: unknown): CampaignState | null {

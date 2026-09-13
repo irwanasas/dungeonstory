@@ -40,7 +40,7 @@ import { absorbResult } from './roster';
 import { composeModifiers, activeEffects, tickWorld, CAMPAIGN_CLAMP } from './world';
 import type { GameState } from './save';
 
-import type { CampaignState, DayOutcome, MilestoneStop, PartyMember, PendingChoice } from './campaignState';
+import type { BattleSeed, CampaignState, DayOutcome, MilestoneStop, PartyMember, PendingChoice } from './campaignState';
 import {
   CAMPAIGN_SHAPE,
   CAMPAIGN_START_UNLOCKED,
@@ -447,18 +447,28 @@ export function advanceDay(camp: CampaignState, world: WorldState): DayOutcome {
   decayMods(next);
   const mods = modifiersFor(next, world);
   const rng = dayRng(next, 2);
+  const preWave = activeParty(next);
 
+  let battle = false;
   if (isFinalDay(next)) {
     resolveFinalDay(next, mods, rng, out);
+    battle = true;
   } else if (isCheckpointDay(next)) {
     resolveMilestoneBattle(next, mods, rng, out);
+    battle = true;
   } else if (isPrepDay(next)) {
     resolveForcedPrep(next);
   } else if (rng() < RANDOM_BATTLE_CHANCE) {
     resolveRandomBattle(next, mods, rng, out);
+    battle = true;
   } else {
     resolveDayEvent(next, out);
   }
+
+  const raidStart = out.find((e): e is Extract<RaidEvent, { t: 'raidStart' }> => e.t === 'raidStart');
+  const seeds: BattleSeed[] = raidStart
+    ? [{ name: raidStart.hero.name, defId: raidStart.hero.defId, hp: raidStart.hero.hp, maxHp: raidStart.hero.maxHp }]
+    : preWave.map((m) => ({ name: m.hero.name, defId: m.hero.defId, hp: m.hero.hp, maxHp: m.hero.maxHp }));
 
   if (!isCheckpointDay(next)) {
     const wave = activeParty(next);
@@ -489,7 +499,7 @@ export function advanceDay(camp: CampaignState, world: WorldState): DayOutcome {
     } else next.day += 1;
   }
 
-  return { camp: next, events: out };
+  return { camp: next, events: out, battle, seeds };
 }
 
 function queueProc(camp: CampaignState, procs: ProcOffer[]): void {

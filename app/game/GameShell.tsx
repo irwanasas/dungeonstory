@@ -8,7 +8,6 @@ import { effectCount } from '../../game/state/world';
 import type { GameState } from '../../game/state/save';
 import { settleRaid, stageCleared as didClearStage } from '../../game/state/raidOutcome';
 import {
-  activeParty,
   advanceDay,
   beginCampaign,
   commitChoice,
@@ -16,7 +15,6 @@ import {
   buyMerchantItem,
   campaignIntel,
   daysToCheckpoint,
-  isCheckpointDay,
   isFinalDay,
   levelRunContent,
   placeRunRoom,
@@ -213,28 +211,21 @@ export default function GameShell() {
 
   async function nextDay() {
     if (busy || !state || !camp || camp.pending) return;
-    const battle = isCheckpointDay(camp);
-    const wave = activeParty(camp);
     const fromRoom = isFinalDay(camp) ? EDITABLE_ROOMS - 1 : -1;
     setStepping(true);
+    const outcome = advanceDay(camp, state.world);
+    const battle = !!outcome.battle;
     if (battle) {
       // Mount the dungeon before playback: the director captures scrollRef
       // synchronously, so it has to exist before play() is called.
       setBattleStep(true);
       await new Promise((r) => setTimeout(r, 0));
     }
-    const outcome = advanceDay(camp, state.world);
     update((s) => ({ ...s, campaign: outcome.camp }));
     sfx(battle ? 'door' : 'tap');
 
-    if (battle && outcome.events.length > 0 && wave.length > 0) {
-      const seeds = wave.map((m) => ({
-        name: m.hero.name,
-        defId: m.hero.defId,
-        hp: m.hero.hp,
-        maxHp: m.hero.maxHp
-      }));
-      await play(outcome.events, seeds, fromRoom);
+    if (battle && outcome.events.length > 0 && outcome.seeds && outcome.seeds.length > 0) {
+      await play(outcome.events, outcome.seeds, fromRoom);
     }
     setBattleStep(false);
     setStepping(false);
