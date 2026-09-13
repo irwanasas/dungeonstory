@@ -98,12 +98,12 @@ export interface CampaignModifier {
 
 export interface PendingChoice {
   eventId: string;
-  kind: 'choice' | 'altar' | 'ecosystem' | 'proc' | 'prep';
+  kind: 'choice' | 'altar' | 'ecosystem' | 'proc' | 'prep' | 'dwarfOffer' | 'merchantShop';
   title: string;
   body: string;
   options: { id: string; label: string; hint: string }[];
   proc?: { kind: StatusKind; uid: string; trapId: string };
-  prep?: { merchantTraps: string[]; merchantMonster: string; merchantCost: number; dwarfTrapId: string };
+  merchant?: { id: string; kind: 'trap' | 'monster'; cost: number }[];
 }
 
 export interface ExpLogEntry {
@@ -171,9 +171,10 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   if (!Array.isArray(e.monsters) || e.monsters.length !== EDITABLE_ROOMS + 1) return null;
   if (e.status !== 'active' && e.status !== 'complete') return null;
   if (e.pending && (!Array.isArray(e.pending.options) || e.pending.options.length === 0)) return null;
-  if (e.pending && e.pending.kind !== 'proc' && e.pending.kind !== 'prep' && !dayEvent(e.pending.eventId)) return null;
+  const CAMPAIGN_KINDS = new Set(['proc', 'prep', 'dwarfOffer', 'merchantShop']);
+  if (e.pending && !CAMPAIGN_KINDS.has(e.pending.kind) && !dayEvent(e.pending.eventId)) return null;
   if (e.pending && e.pending.kind === 'proc' && !e.pending.proc) return null;
-  if (e.pending && e.pending.kind === 'prep' && !e.pending.prep) return null;
+  if (e.pending && e.pending.kind === 'merchantShop' && !Array.isArray(e.pending.merchant)) return null;
   for (const m of e.party) {
     if (!m || !m.hero || typeof m.hero.hp !== 'number' || !Array.isArray(m.hero.status)) return null;
   }

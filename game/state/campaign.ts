@@ -453,7 +453,7 @@ export function advanceDay(camp: CampaignState, world: WorldState): DayOutcome {
   } else if (isCheckpointDay(next)) {
     resolveMilestoneBattle(next, mods, rng, out);
   } else if (isPrepDay(next)) {
-    resolveForcedPrep(next, rng);
+    resolveForcedPrep(next);
   } else if (rng() < RANDOM_BATTLE_CHANCE) {
     resolveRandomBattle(next, mods, rng, out);
   } else {
@@ -553,40 +553,58 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
   if (camp.status !== 'active' || !camp.pending) return { camp, events: [] };
 
   if (camp.pending.kind === 'prep') {
-    const prep = camp.pending.prep;
-    if (!prep) return { camp, events: [] };
     const next: CampaignState = {
       ...camp,
       mods: camp.mods.map((m) => ({ ...m })),
-      log: camp.log.slice(),
-      wallet: { ...camp.wallet },
-      runLevels: { ...camp.runLevels },
-      runUnlocked: camp.runUnlocked.slice()
+      log: camp.log.slice()
     };
-    let confirm: string;
     if (optionId === 'merchant') {
-      next.wallet.gold = Math.max(0, next.wallet.gold - prep.merchantCost);
-      for (const id of [...prep.merchantTraps, prep.merchantMonster]) {
-        if (!next.runUnlocked.includes(id)) next.runUnlocked.push(id);
-      }
-      next.log.push({ day: next.day, kind: 'prep:merchant', text: 'Bought from the traveling merchant.' });
-      confirm = `The merchant hands over ${trapDef(prep.merchantTraps[0]).name}, ${trapDef(prep.merchantTraps[1]).name} and ${monsterDef(prep.merchantMonster).name}.`;
-    } else if (optionId === 'dwarf') {
-      next.runLevels[prep.dwarfTrapId] = (next.runLevels[prep.dwarfTrapId] || 1) + 1;
-      next.log.push({ day: next.day, kind: 'prep:dwarf', text: `The dwarf upgrades ${trapDef(prep.dwarfTrapId).name}.` });
-      confirm = `The dwarf upgrades ${trapDef(prep.dwarfTrapId).name} for the rest of the run.`;
-    } else if (optionId === 'party') {
+      next.pending = rollMerchantShop(next);
+      next.log.push({ day: next.day, kind: 'prep:merchant', text: 'A traveling merchant sets up shop.' });
+      return { camp: next, events: [] };
+    }
+    if (optionId === 'dwarf') {
+      next.pending = {
+        eventId: 'prep-dwarf',
+        kind: 'dwarfOffer',
+        title: 'Wandering Dwarf',
+        body: 'A dwarf looks over your traps and monsters, tools in hand.',
+        options: [
+          { id: 'upgrade', label: 'Upgrade', hint: 'Pay him to upgrade something you already have.' },
+          { id: 'leave', label: 'Leave', hint: 'Send him on his way.' }
+        ]
+      };
+      next.log.push({ day: next.day, kind: 'prep:dwarf', text: 'A wandering dwarf offers his services.' });
+      return { camp: next, events: [] };
+    }
+    if (optionId === 'party') {
       next.mods = [
         ...next.mods.filter((m) => m.id !== 'prep:party'),
         { id: 'prep:party', source: 'choice' as const, label: 'Campfire Council', daysLeft: 4, effect: { heroAtk: 1.1, heroHp: 1.1 } }
       ];
       next.log.push({ day: next.day, kind: 'prep:party', text: 'The party rallies around the fire.' });
-      confirm = 'The party rallies around the fire, ready for what comes next.';
-    } else {
-      return { camp, events: [] };
+      next.pending = null;
+      next.dayBody = `${next.dayBody}\n\nThe party rallies around the fire, ready for what comes next.`;
+      return { camp: next, events: [] };
     }
+    return { camp, events: [] };
+  }
+
+  if (camp.pending.kind === 'dwarfOffer') {
+    const next: CampaignState = { ...camp, log: camp.log.slice() };
     next.pending = null;
-    next.dayBody = `${next.dayBody}\n\n${confirm}`;
+    if (optionId === 'upgrade') {
+      next.log.push({ day: next.day, kind: 'prep:dwarf-upgrade', text: 'The dwarf sets up his tools.' });
+    } else {
+      next.log.push({ day: next.day, kind: 'prep:dwarf-leave', text: 'The dwarf is sent on his way.' });
+    }
+    return { camp: next, events: [] };
+  }
+
+  if (camp.pending.kind === 'merchantShop') {
+    const next: CampaignState = { ...camp, log: camp.log.slice() };
+    next.pending = null;
+    next.log.push({ day: next.day, kind: 'prep:merchant-leave', text: 'The merchant packs up and moves on.' });
     return { camp: next, events: [] };
   }
 
@@ -888,10 +906,26 @@ function isPrepDay(camp: CampaignState): boolean {
   return camp.setup.milestoneDays.includes(camp.day + 1);
 }
 
-function resolveForcedPrep(camp: CampaignState, rng: Rng): void {
+function resolveForcedPrep(camp: CampaignState): void {
   camp.dayTone = 'neutral';
   camp.dayTitle = 'The Road Splits';
   camp.dayBody = 'Before the next trial, three offers reach your gate.';
+  camp.pending = {
+    eventId: 'prep',
+    kind: 'prep',
+    title: 'The Road Splits',
+    body: 'Before the next trial, three offers reach your gate.',
+    options: [
+      { id: 'merchant', label: 'Traveling Merchant', hint: 'Browse a fresh stock of traps and a monster, buy what you can afford.' },
+      { id: 'dwarf', label: 'Wandering Dwarf', hint: 'Pay him to upgrade something you already have.' },
+      { id: 'party', label: 'Campfire Council', hint: 'A campaign-wide buff for a few days.' }
+    ]
+  };
+  camp.log.push({ day: camp.day, kind: 'prep', text: 'A prep-day offer reaches the gate.' });
+}
+
+function rollMerchantShop(camp: CampaignState): PendingChoice {
+  const rng = dayRng(camp, 5);
   const trapPool = TRAPS.filter((t) => !camp.runUnlocked.includes(t.id));
   const monsterPool = MONSTERS.filter((m) => !camp.runUnlocked.includes(m.id));
   const pickTrap = () =>
@@ -906,28 +940,31 @@ function resolveForcedPrep(camp: CampaignState, rng: Rng): void {
     monsterPool.length > 0
       ? monsterPool[Math.floor(rng() * monsterPool.length) % monsterPool.length].id
       : MONSTERS[Math.floor(rng() * MONSTERS.length) % MONSTERS.length].id;
-  const merchantCost = 12 + camp.setup.campaignNumber * 2;
 
-  const placedTraps = camp.runRooms.filter((s) => s.kind === 'trap').map((s) => (s as { kind: 'trap'; id: string }).id);
-  const dwarfTrapId = placedTraps.length > 0 ? placedTraps[Math.floor(rng() * placedTraps.length) % placedTraps.length] : t1;
-
-  camp.pending = {
-    eventId: 'prep',
-    kind: 'prep',
-    title: 'The Road Splits',
-    body: 'Before the next trial, three offers reach your gate.',
-    options: [
-      {
-        id: 'merchant',
-        label: 'Traveling Merchant',
-        hint: `Buy ${trapDef(t1).name}, ${trapDef(t2).name} and ${monsterDef(monster).name} for ${merchantCost} gold.`
-      },
-      { id: 'dwarf', label: 'Wandering Dwarf', hint: `Upgrade ${trapDef(dwarfTrapId).name} for the rest of the run.` },
-      { id: 'party', label: 'Campfire Council', hint: 'A campaign-wide buff for a few days.' }
-    ],
-    prep: { merchantTraps: [t1, t2], merchantMonster: monster, merchantCost, dwarfTrapId }
+  return {
+    eventId: 'prep-merchant',
+    kind: 'merchantShop',
+    title: 'Traveling Merchant',
+    body: 'A merchant lays out her stock for you to pick through.',
+    options: [{ id: 'leave', label: 'Leave', hint: 'Pack up and move on.' }],
+    merchant: [
+      { id: t1, kind: 'trap', cost: trapDef(t1).goldCost },
+      { id: t2, kind: 'trap', cost: trapDef(t2).goldCost },
+      { id: monster, kind: 'monster', cost: monsterDef(monster).goldCost }
+    ]
   };
-  camp.log.push({ day: camp.day, kind: 'prep', text: 'A prep-day offer reaches the gate.' });
+}
+
+export function buyMerchantItem(camp: CampaignState, id: string): CampaignState {
+  if (!camp.pending || camp.pending.kind !== 'merchantShop' || !camp.pending.merchant) return camp;
+  const item = camp.pending.merchant.find((x) => x.id === id);
+  if (!item || camp.runUnlocked.includes(id) || camp.wallet.gold < item.cost) return camp;
+  return {
+    ...camp,
+    wallet: { ...camp.wallet, gold: camp.wallet.gold - item.cost },
+    runUnlocked: [...camp.runUnlocked, id],
+    log: [...camp.log, { day: camp.day, kind: 'prep:merchant-buy', text: `Bought ${(item.kind === 'trap' ? trapDef : monsterDef)(id).name} from the merchant.` }]
+  };
 }
 
 function runIdCounts(rooms: RoomSlot[]): Record<string, number> {

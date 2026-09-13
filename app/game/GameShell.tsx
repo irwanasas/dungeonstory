@@ -13,7 +13,9 @@ import {
   beginCampaign,
   commitChoice,
   endCampaign,
+  buyMerchantItem,
   campaignIntel,
+  daysToCheckpoint,
   isCheckpointDay,
   isFinalDay,
   levelRunContent,
@@ -30,6 +32,8 @@ import { StatusPanel } from './panels/StatusPanel';
 import { RoomPrepView } from './panels/RoomPrepView';
 import { PastEventPanel } from './panels/PastEventPanel';
 import { PrepBuildSheet } from './panels/PrepBuildSheet';
+import { DwarfUpgradePanel } from './panels/DwarfUpgradePanel';
+import { MerchantShopPanel } from './panels/MerchantShopPanel';
 import { CampaignSheet } from './panels/CampaignSheet';
 import { ArmoryView } from './panels/ArmoryView';
 import { CampaignIdle } from './panels/CampaignIdle';
@@ -48,7 +52,17 @@ import { useRaidDirector } from './useRaidDirector';
 import { useGameState } from './useGameState';
 import { play as sfx, startAmbient } from './audio';
 
-type SheetKind = 'prepBuild' | 'codex' | 'settings' | 'world' | 'report' | 'intel' | 'guardian' | null;
+type SheetKind =
+  | 'prepBuild'
+  | 'dwarfUpgrade'
+  | 'merchantShop'
+  | 'codex'
+  | 'settings'
+  | 'world'
+  | 'report'
+  | 'intel'
+  | 'guardian'
+  | null;
 
 type Tab = 'shop' | 'equipment' | 'campaign' | 'talent' | 'explore';
 
@@ -228,9 +242,23 @@ export default function GameShell() {
 
   function choose(optionId: string) {
     if (busy || !state || !camp) return;
+    const openUpgradeAfter = camp.pending?.kind === 'dwarfOffer' && optionId === 'upgrade';
+    const openMerchantAfter = camp.pending?.kind === 'prep' && optionId === 'merchant';
     const outcome = commitChoice(camp, optionId, state.world);
     update((s) => ({ ...s, campaign: outcome.camp }));
     sfx('place');
+    if (openUpgradeAfter) setSheet('dwarfUpgrade');
+    if (openMerchantAfter) setSheet('merchantShop');
+  }
+
+  function buyFromMerchant(id: string) {
+    update((s) => (s.campaign ? { ...s, campaign: buyMerchantItem(s.campaign, id) } : s));
+    sfx('coin');
+  }
+
+  function leaveMerchant() {
+    setSheet(null);
+    choose('leave');
   }
 
   function finishCampaign() {
@@ -266,27 +294,45 @@ export default function GameShell() {
 
   return (
     <div className="app" style={artVars}>
-      <header className="hud plate">
-        <div className="hud-left hud-lord">
-          <span className="hud-portrait inset">
-            <img src={ICON.lord} alt="" />
+      {onCampaign && camp ? (
+        <header className="hud plate hud-campaign">
+          <span className="hud-milestone">
+            Next Milestone: {daysToCheckpoint(camp)} {daysToCheckpoint(camp) === 1 ? 'day' : 'days'}
           </span>
-          <span className="hud-lord-info">
-            <div className="hud-title">Nekrokos</div>
-            <div className="hud-sub">{`Level: ${state.lordLevel}`}</div>
-          </span>
-        </div>
-        <div className="hud-right">
-          <span className="coin">
-            <img src={ICON.gold} alt="Gold" />
-            {state.gold}
-          </span>
-          <span className="coin souls">
-            <img src={ICON.soul} alt="Souls" />
-            {state.souls}
-          </span>
-        </div>
-      </header>
+          <div className="hud-right">
+            <span className="coin">
+              <img src={ICON.gold} alt="Gold" />
+              {camp.wallet.gold}
+            </span>
+            <span className="coin souls">
+              <img src={ICON.soul} alt="Souls" />
+              {camp.wallet.souls}
+            </span>
+          </div>
+        </header>
+      ) : (
+        <header className="hud plate">
+          <div className="hud-left hud-lord">
+            <span className="hud-portrait inset">
+              <img src={ICON.lord} alt="" />
+            </span>
+            <span className="hud-lord-info">
+              <div className="hud-title">Nekrokos</div>
+              <div className="hud-sub">{`Level: ${state.lordLevel}`}</div>
+            </span>
+          </div>
+          <div className="hud-right">
+            <span className="coin">
+              <img src={ICON.gold} alt="Gold" />
+              {state.gold}
+            </span>
+            <span className="coin souls">
+              <img src={ICON.soul} alt="Souls" />
+              {state.souls}
+            </span>
+          </div>
+        </header>
+      )}
 
       <nav className="tabs">
         <button className="tab tab-icon btn" onClick={() => openSheet('world')} disabled={busy} aria-label="Announcements">
@@ -378,7 +424,6 @@ export default function GameShell() {
                 setPrepRoom(i);
                 openSheet('prepBuild');
               }}
-              onLevel={levelPrep}
             />
           )}
           {campTab === 'pastEvent' && <PastEventPanel camp={camp} />}
@@ -439,6 +484,12 @@ export default function GameShell() {
           onClose={closeSheet}
           onPlace={placeInPrep}
         />
+      )}
+      {camp && (
+        <DwarfUpgradePanel open={sheet === 'dwarfUpgrade'} camp={camp} onUpgrade={levelPrep} onClose={closeSheet} />
+      )}
+      {camp && (
+        <MerchantShopPanel open={sheet === 'merchantShop'} camp={camp} onBuy={buyFromMerchant} onClose={leaveMerchant} />
       )}
       <LordPickerSheet
         open={sheet === 'guardian'}

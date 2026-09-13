@@ -94,6 +94,14 @@
   gap: 10px;
   flex-shrink: 0;
 }
+.hud-milestone {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--bone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .coin {
   display: flex;
   align-items: center;
