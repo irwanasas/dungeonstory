@@ -12,6 +12,7 @@ export interface RaidOptions {
   rng?: Rng;
   collectEvents?: boolean;
   world?: WorldModifiers;
+  lordHpPct?: number;
 }
 
 export function simulateRaid(dungeon: Dungeon, record: HeroRecord, tier: number, options: RaidOptions = {}): RaidResult {
@@ -31,6 +32,7 @@ export function simulateRaid(dungeon: Dungeon, record: HeroRecord, tier: number,
   let roomsEntered = 0;
   let fled = false;
   let died = false;
+  let lordHp: { hp: number; maxHp: number } | undefined;
 
   for (let i = 0; i < EDITABLE_ROOMS; i++) {
     const built = dungeon.rooms[i] || { slot: { kind: 'empty' as const }, level: 1 };
@@ -93,10 +95,12 @@ export function simulateRaid(dungeon: Dungeon, record: HeroRecord, tier: number,
         talents: dungeon.talents,
         rng,
         lord: { level: dungeon.lordLevel, weaponId: dungeon.lordWeaponId },
-        killedByTag
+        killedByTag,
+        lordHpPct: options.lordHpPct
       });
       events.push(...res.events);
       killedByTag = res.killedByTag;
+      lordHp = res.lordHp;
 
       if (res.wiped) {
         events.push({ t: 'reaction', kind: 'dead' });
@@ -127,6 +131,7 @@ export function simulateRaid(dungeon: Dungeon, record: HeroRecord, tier: number,
     roomsCleared: roomsEntered,
     hero: start,
     killedByTag,
-    survived
+    survived,
+    lordHp
   };
 }

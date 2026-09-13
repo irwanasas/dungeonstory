@@ -82,14 +82,14 @@ export function lordEnemy(
   talents: TalentBonus
 ): Enemy {
   const lvl = Math.max(1, level);
-  const hp = Math.max(1, Math.round((LORD.hp + (lvl - 1) * LORD.hpPerLevel) * world.monsterHp) + talents.hp);
+  const hp = Math.max(1, Math.round((LORD.hp + (lvl - 1) * LORD.hpPerLevel) * world.monsterHp * world.lordHp) + talents.hp);
   return {
     id: 'lord',
     name: LORD.name,
     tag: weapon.tag,
     hp,
     maxHp: hp,
-    atk: Math.max(1, Math.round((LORD.atk + (lvl - 1) * LORD.atkPerLevel) * world.monsterAtk) + talents.atk),
+    atk: Math.max(1, Math.round((LORD.atk + (lvl - 1) * LORD.atkPerLevel) * world.monsterAtk * world.lordAtk) + talents.atk),
     def: Math.round(LORD.def + (lvl - 1) * LORD.defPerLevel) + talents.def,
     hitsPerRound: LORD.hitsPerRound,
     cadence: 1,

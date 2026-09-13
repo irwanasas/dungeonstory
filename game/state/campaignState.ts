@@ -98,12 +98,13 @@ export interface CampaignModifier {
 
 export interface PendingChoice {
   eventId: string;
-  kind: 'choice' | 'altar' | 'ecosystem' | 'proc' | 'prep' | 'dwarfOffer' | 'merchantShop';
+  kind: 'choice' | 'altar' | 'ecosystem' | 'proc' | 'prep' | 'dwarfOffer' | 'merchantShop' | 'partyOffer' | 'mystery';
   title: string;
   body: string;
   options: { id: string; label: string; hint: string }[];
   proc?: { kind: StatusKind; uid: string; trapId: string };
   merchant?: { id: string; kind: 'trap' | 'monster'; cost: number }[];
+  mystery?: { positiveOptionId: string; effect: WorldEffect };
 }
 
 export interface ExpLogEntry {
@@ -139,6 +140,9 @@ export interface CampaignState {
   runLevels: Record<string, number>;
   runUnlocked: string[];
   outcome: Outcome | null;
+  lordHpPct: number;
+  altarsTriggered: string[];
+  mysteryDay: number | null;
 }
 
 export const CAMPAIGN_START_UNLOCKED = ['spike', 'goblin'];
@@ -180,7 +184,7 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   if (!Array.isArray(e.monsters) || e.monsters.length !== EDITABLE_ROOMS + 1) return null;
   if (e.status !== 'active' && e.status !== 'complete') return null;
   if (e.pending && (!Array.isArray(e.pending.options) || e.pending.options.length === 0)) return null;
-  const CAMPAIGN_KINDS = new Set(['proc', 'prep', 'dwarfOffer', 'merchantShop']);
+  const CAMPAIGN_KINDS = new Set(['proc', 'prep', 'dwarfOffer', 'merchantShop', 'partyOffer', 'mystery']);
   if (e.pending && !CAMPAIGN_KINDS.has(e.pending.kind) && !dayEvent(e.pending.eventId)) return null;
   if (e.pending && e.pending.kind === 'proc' && !e.pending.proc) return null;
   if (e.pending && e.pending.kind === 'merchantShop' && !Array.isArray(e.pending.merchant)) return null;
@@ -195,6 +199,9 @@ export function normalizeCampaign(input: unknown): CampaignState | null {
   }
   if (!e.runLevels || typeof e.runLevels !== 'object') e.runLevels = {};
   if (!Array.isArray(e.runUnlocked)) e.runUnlocked = [...CAMPAIGN_START_UNLOCKED];
+  if (typeof e.lordHpPct !== 'number' || e.lordHpPct < 0 || e.lordHpPct > 1) e.lordHpPct = 1;
+  if (!Array.isArray(e.altarsTriggered)) e.altarsTriggered = [];
+  if (typeof e.mysteryDay !== 'number') e.mysteryDay = null;
   return e as CampaignState;
 }
 

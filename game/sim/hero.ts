@@ -167,6 +167,10 @@ export function advanceStatusList(status: ActiveStatus[]): { kept: ActiveStatus[
   const kept: ActiveStatus[] = [];
   const expired: StatusKind[] = [];
   for (const s of status) {
+    if (s.ticksLeft < 0) {
+      kept.push(s);
+      continue;
+    }
     const left = s.ticksLeft - 1;
     if (left > 0) kept.push({ ...s, ticksLeft: left });
     else expired.push(s.kind);

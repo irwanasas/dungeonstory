@@ -1,4 +1,4 @@
-import type { DayEvent } from '../types';
+import type { DayEvent, WorldEffect } from '../types';
 
 export const DAY_EVENTS: DayEvent[] = [
   {
@@ -45,14 +45,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'wade',
         label: 'Wade through it',
         hint: 'Faster, but they come out soaked to the knee.',
-        applyStatus: { kind: 'oiled', days: 3, to: 'party' }
+        applyStatus: { kind: 'oiled', to: 'party' }
       },
       {
         id: 'around',
         label: 'Go around the wreck',
-        hint: 'Clean boots, lost hours. They arrive tired.',
-        effect: { heroAtk: 0.94 },
-        days: 3
+        hint: 'Clean boots, lost hours — and something in the deep hall stirs uneasily.',
+        lordHpDelta: -0.05
       }
     ]
   },
@@ -70,14 +69,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'cut-through',
         label: 'Cut through the thorns',
         hint: 'The vines catch and hold. Bound.',
-        applyStatus: { kind: 'bound', days: 2, to: 'party' }
+        applyStatus: { kind: 'bound', to: 'party' }
       },
       {
         id: 'long-way',
         label: 'Take the long way',
-        hint: 'No thorns. No rest either.',
-        effect: { heroHp: 0.95 },
-        days: 3
+        hint: 'No thorns. No rest either — and word of the delay reaches the deep hall.',
+        lordHpDelta: -0.05
       }
     ]
   },
@@ -90,13 +88,17 @@ export const DAY_EVENTS: DayEvent[] = [
     weight: 6,
     tiers: ['early', 'mid'],
     options: [
-      { id: 'pray', label: 'Kneel and pray', hint: 'They rise with wounds closed.', healPct: 0.25 },
+      {
+        id: 'pray',
+        label: 'Kneel and pray',
+        hint: 'Something in the deep hall rests easier.',
+        lordHpDelta: 0.08
+      },
       {
         id: 'rob',
         label: 'Take the offerings',
         hint: 'Fed and emboldened, and something notices.',
-        effect: { heroAtk: 1.08 },
-        days: 4
+        effect: { monsterAtk: 1.06 }
       }
     ]
   },
@@ -112,15 +114,14 @@ export const DAY_EVENTS: DayEvent[] = [
       {
         id: 'listen',
         label: 'Let her read the road',
-        hint: 'Forewarned. They walk in braced.',
-        effect: { heroHp: 1.07 },
-        days: 4
+        hint: 'Forewarned. Something in the deep hall rests easier for it.',
+        lordHpDelta: 0.06
       },
       {
         id: 'refuse',
         label: 'Refuse her',
         hint: 'She smiles. That is worse.',
-        applyStatus: { kind: 'fear', days: 2, to: 'party' }
+        applyStatus: { kind: 'fear', to: 'party' }
       }
     ]
   },
@@ -138,15 +139,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'take-ember',
         label: 'Take the Ember Aura',
         hint: 'Fire bites deeper for the rest of the road.',
-        effect: { tagDamage: { fire: 1.18 } },
-        days: -1
+        effect: { tagDamage: { fire: 1.18 } }
       },
       {
         id: 'take-forge',
         label: 'Take the Forge Aura',
         hint: 'Your monsters take the heat into themselves and harden.',
-        effect: { monsterHp: 1.12 },
-        days: -1
+        effect: { monsterHp: 1.12 }
       }
     ]
   },
@@ -164,15 +163,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'take-frost',
         label: 'Take the Frost Aura',
         hint: 'Frost bites deeper for the rest of the road.',
-        effect: { tagDamage: { frost: 1.18 } },
-        days: -1
+        effect: { tagDamage: { frost: 1.18 } }
       },
       {
         id: 'take-warding',
         label: 'Take the Warding Aura',
         hint: 'Your monsters hit harder instead.',
-        effect: { monsterAtk: 1.12 },
-        days: -1
+        effect: { monsterAtk: 1.12 }
       }
     ]
   },
@@ -190,15 +187,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'take-rot',
         label: 'Take the Rot Aura',
         hint: 'Poison bites deeper for the rest of the road.',
-        effect: { tagDamage: { poison: 1.18 } },
-        days: -1
+        effect: { tagDamage: { poison: 1.18 } }
       },
       {
         id: 'take-stone',
         label: 'Take the Stonebound Aura',
         hint: 'Your traps hit harder instead.',
-        effect: { trapDamage: 1.15 },
-        days: -1
+        effect: { trapDamage: 1.15 }
       }
     ]
   },
@@ -216,14 +211,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'let-it-pass',
         label: 'Let it be',
         hint: 'Everything breathes it in. Everything. The Skeleton Archer has no lungs.',
-        applyStatus: { kind: 'poison', days: 3, to: 'both', except: ['archer'] }
+        applyStatus: { kind: 'poison', to: 'both', except: ['archer'] }
       },
       {
         id: 'raise-barrier',
         label: 'Raise a barrier',
         hint: 'Your halls stay clean. It costs you.',
-        effect: { monsterHp: 0.92 },
-        days: 3
+        effect: { monsterHp: 0.92 }
       }
     ]
   },
@@ -241,14 +235,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'let-it-rise',
         label: 'Let it rise',
         hint: 'Party and monsters alike go slick underfoot.',
-        applyStatus: { kind: 'oiled', days: 3, to: 'both' }
+        applyStatus: { kind: 'oiled', to: 'both' }
       },
       {
         id: 'pump-it',
         label: 'Pump it out',
         hint: 'Dry halls, exhausted monsters.',
-        effect: { monsterAtk: 0.93 },
-        days: 3
+        effect: { monsterAtk: 0.93 }
       }
     ]
   },
@@ -265,15 +258,15 @@ export const DAY_EVENTS: DayEvent[] = [
       {
         id: 'camp-and-heal',
         label: 'They camp and treat it',
-        hint: 'Days lost, strength returned.',
-        healPct: 0.3
+        hint: 'Days lost, and something in the deep hall rests easier for the delay.',
+        lordHpDelta: 0.1
       },
       {
         id: 'push-on',
         label: 'They push on regardless',
-        hint: 'Ground gained, fever worse.',
-        effect: { heroAtk: 1.06, heroHp: 0.9 },
-        days: 3
+        hint: 'Ground gained, fever worse — the strain reaches all the way down.',
+        lordHpDelta: -0.08,
+        effect: { monsterAtk: 1.08 }
       }
     ]
   },
@@ -300,10 +293,14 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'take-arms',
         label: 'Re-arm',
         hint: 'Sharper steel for the rest of the road.',
-        effect: { heroAtk: 1.1 },
-        days: 5
+        effect: { trapDamage: 1.08 }
       },
-      { id: 'take-food', label: 'Eat and rest', hint: 'They arrive whole.', healPct: 0.35 }
+      {
+        id: 'take-food',
+        label: 'Eat and rest',
+        hint: 'They arrive whole, and something in the deep hall rests easier.',
+        lordHpDelta: 0.1
+      }
     ]
   },
   {
@@ -340,14 +337,13 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'drink',
         label: 'Drink deep',
         hint: 'Thirst gone. Something else arrives.',
-        applyStatus: { kind: 'poison', days: 3, to: 'party' }
+        applyStatus: { kind: 'poison', to: 'party' }
       },
       {
         id: 'ration',
         label: 'Ration what they carry',
-        hint: 'Parched and slower to swing.',
-        effect: { heroAtk: 0.92 },
-        days: 3
+        hint: 'Parched and slower to swing — the deep hall feels it too.',
+        lordHpDelta: -0.05
       }
     ]
   },
@@ -360,13 +356,17 @@ export const DAY_EVENTS: DayEvent[] = [
     weight: 5,
     tiers: ['early', 'mid'],
     options: [
-      { id: 'accept', label: 'Accept the blessing', hint: 'Wounds close on the road.', healPct: 0.2 },
+      {
+        id: 'accept',
+        label: 'Accept the blessing',
+        hint: 'Wounds close on the road, and something in the deep hall rests easier.',
+        lordHpDelta: 0.06
+      },
       {
         id: 'question',
         label: 'Question them about the road',
         hint: 'They learn where your gate is weakest.',
-        effect: { heroAtk: 1.07 },
-        days: 4
+        effect: { monsterHp: 1.05 }
       }
     ]
   },
@@ -384,9 +384,14 @@ export const DAY_EVENTS: DayEvent[] = [
         id: 'through-the-fire',
         label: 'March through the burn',
         hint: 'They come out smoking.',
-        applyStatus: { kind: 'burn', days: 3, to: 'party' }
+        applyStatus: { kind: 'burn', to: 'party' }
       },
-      { id: 'help', label: 'Stop and help', hint: 'Days spent, spirits high.', healPct: 0.25 }
+      {
+        id: 'help',
+        label: 'Stop and help',
+        hint: 'Days spent, spirits high, and something in the deep hall rests easier.',
+        lordHpDelta: 0.08
+      }
     ]
   },
   {
@@ -411,15 +416,14 @@ export const DAY_EVENTS: DayEvent[] = [
       {
         id: 'read-names',
         label: 'Read every name',
-        hint: 'They learn what killed the last lot.',
-        effect: { heroHp: 1.08 },
-        days: 5
+        hint: 'They learn what killed the last lot, and something in the deep hall rests easier.',
+        lordHpDelta: 0.08
       },
       {
         id: 'march-past',
         label: 'March past without looking',
         hint: 'Discipline holds. Nerves do not.',
-        applyStatus: { kind: 'fear', days: 2, to: 'party' }
+        applyStatus: { kind: 'fear', to: 'party' }
       }
     ]
   },
@@ -445,16 +449,15 @@ export const DAY_EVENTS: DayEvent[] = [
       {
         id: 'eat-the-horse',
         label: 'Eat the horses',
-        hint: 'Fed, but the pace collapses.',
-        effect: { heroHp: 1.06, heroAtk: 0.94 },
-        days: 4
+        hint: 'Fed, but the pace collapses — and something in the deep hall goes with it.',
+        lordHpDelta: -0.06,
+        effect: { monsterHp: 1.06 }
       },
       {
         id: 'forced-march',
         label: 'Forced march on empty',
-        hint: 'They arrive fast and hollow.',
-        effect: { heroHp: 0.88 },
-        days: 4
+        hint: 'They arrive fast and hollow, and the deep hall feels thinner for it.',
+        lordHpDelta: -0.1
       }
     ]
   }
@@ -468,43 +471,60 @@ export interface ProcFlavour {
   title: string;
   body: string;
   amp: { label: string; hint: string };
-  longer: { label: string; hint: string };
 }
 
 const PROC_FALLBACK: ProcFlavour = {
   title: 'The Wound Turns',
-  body: 'What your room left in them is still working. It could be made worse, or made to last.',
-  amp: { label: 'Make it bite deeper', hint: 'Each tick hurts more, over the same days.' },
-  longer: { label: 'Make it last longer', hint: 'Same bite, two more days of it.' }
+  body: 'What your room left in them is still working. It will only get worse from here.',
+  amp: { label: 'Make it bite deeper', hint: 'It will not stop until it runs its course.' }
 };
 
 const PROC_FLAVOUR: Record<string, ProcFlavour> = {
   spike: {
     title: 'The Wound Festers',
     body: 'The gash from your spikes has not closed. Something is getting into it.',
-    amp: { label: 'Infection', hint: 'The bleeding runs harder for the same three days.' },
-    longer: { label: 'It will not close', hint: 'The same slow bleed, two days further down the road.' }
+    amp: { label: 'Infection', hint: 'The bleeding runs harder until it finally closes.' }
   },
   poison: {
     title: 'The Toxin Settles',
     body: 'Your gas is in their lungs and has not finished with them.',
-    amp: { label: 'Concentrate it', hint: 'Every tick of poison bites harder.' },
-    longer: { label: 'Let it linger', hint: 'The poison follows them two more days.' }
+    amp: { label: 'Concentrate it', hint: 'Every tick of poison bites harder until it burns out.' }
   },
   fire: {
     title: 'The Fire Takes Hold',
     body: 'They put the flames out. The burn underneath is another matter.',
-    amp: { label: 'Flare', hint: 'The burn sears harder each round.' },
-    longer: { label: 'Smoulder', hint: 'It keeps burning for two more days.' }
+    amp: { label: 'Flare', hint: 'The burn sears harder each round until it is spent.' }
   },
   frost: {
     title: 'The Cold Sinks In',
     body: 'The chill is past their armour and into the joints.',
-    amp: { label: 'Deep freeze', hint: 'The cold cuts harder every round.' },
-    longer: { label: 'Lingering frost', hint: 'Two more days of stiff hands and thin armour.' }
+    amp: { label: 'Deep freeze', hint: 'The cold cuts harder every round until it thaws.' }
   }
 };
 
 export function procFlavour(trapId: string): ProcFlavour {
   return PROC_FLAVOUR[trapId] || PROC_FALLBACK;
+}
+
+export interface MysteryVariant {
+  id: string;
+  weight: number;
+  effect: WorldEffect;
+  hint: string;
+}
+
+export const MYSTERY_VARIANTS: MysteryVariant[] = [
+  { id: 'mystery-atk', weight: 5, effect: { heroAtk: 1.15 }, hint: 'Something shifts, unseen. The party feels stronger for it.' },
+  { id: 'mystery-hp', weight: 5, effect: { heroHp: 1.15 }, hint: 'A strange warmth settles over them.' },
+  { id: 'mystery-both', weight: 1, effect: { heroAtk: 1.1, heroHp: 1.1 }, hint: 'Everything sharpens at once.' }
+];
+
+export function pickMysteryVariant(rng: () => number): MysteryVariant {
+  const total = MYSTERY_VARIANTS.reduce((sum, v) => sum + v.weight, 0);
+  let roll = rng() * total;
+  for (const v of MYSTERY_VARIANTS) {
+    roll -= v.weight;
+    if (roll <= 0) return v;
+  }
+  return MYSTERY_VARIANTS[MYSTERY_VARIANTS.length - 1];
 }

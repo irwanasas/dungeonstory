@@ -54,6 +54,8 @@ export function composeModifiers(effects: WorldEffect[], range: [number, number]
     monsterHp: 1,
     trapDamage: 1,
     tagDamage: {},
+    lordHp: 1,
+    lordAtk: 1,
     gold: 1,
     souls: 1,
     heroBias: []
@@ -65,6 +67,8 @@ export function composeModifiers(effects: WorldEffect[], range: [number, number]
     if (f.monsterAtk) m.monsterAtk *= f.monsterAtk;
     if (f.monsterHp) m.monsterHp *= f.monsterHp;
     if (f.trapDamage) m.trapDamage *= f.trapDamage;
+    if (f.lordHp) m.lordHp *= f.lordHp;
+    if (f.lordAtk) m.lordAtk *= f.lordAtk;
     if (f.gold) m.gold *= f.gold;
     if (f.souls) m.souls *= f.souls;
     for (const [k, v] of Object.entries(f.familyAtk || {})) mul(m.familyAtk, k as HeroFamily, v as number);
@@ -78,6 +82,8 @@ export function composeModifiers(effects: WorldEffect[], range: [number, number]
   m.monsterAtk = clamp(m.monsterAtk);
   m.monsterHp = clamp(m.monsterHp);
   m.trapDamage = clamp(m.trapDamage);
+  m.lordHp = clamp(m.lordHp);
+  m.lordAtk = clamp(m.lordAtk);
   m.gold = clamp(m.gold);
   m.souls = clamp(m.souls);
   for (const k of Object.keys(m.familyAtk)) m.familyAtk[k as HeroFamily] = clamp(m.familyAtk[k as HeroFamily] as number);

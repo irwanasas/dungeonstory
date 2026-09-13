@@ -11,29 +11,31 @@ const STATUS_TO = { party: '', monsters: ' on monsters', both: ' on both' } as c
 // The pending choice only carries id/label/hint, so read the mechanics off the
 // event definition it came from.
 function optionEffect(pending: NonNullable<CampaignState['pending']>, optionId: string): string {
+  if (pending.kind === 'mystery') return '???';
   if (pending.kind === 'proc') {
     const kind = pending.proc ? statusDef(pending.proc.kind).name : 'the effect';
-    return optionId === 'amp' ? `${kind} potency x1.6` : `${kind} +2 days`;
+    return `${kind} potency x1.6`;
   }
   const o = dayEvent(pending.eventId)?.options.find((x) => x.id === optionId);
   if (!o) return 'No effect';
   const parts = describeEffect(o.effect);
-  if (o.effect && o.days !== undefined) parts.push(o.days < 0 ? 'permanent' : `for ${o.days} days`);
+  if (o.effect) parts.push('permanent');
+  if (o.lordHpDelta) parts.push(`Nekrokos HP ${o.lordHpDelta > 0 ? '+' : ''}${Math.round(o.lordHpDelta * 100)}%`);
   if (o.applyStatus) {
     const a = o.applyStatus;
-    parts.push(`${statusDef(a.kind).name}${STATUS_TO[a.to]}, ${a.days} days`);
+    parts.push(`${statusDef(a.kind).name}${STATUS_TO[a.to]}, until triggered`);
   }
-  if (o.healPct) parts.push(`+${Math.round(o.healPct * 100)}% Heal`);
   return parts.length > 0 ? parts.join(' · ') : 'No effect';
 }
 
-const TONE_LABEL: Record<DayTone, string> = {
-  blessed: 'fortune',
-  cursed: 'ill omen',
-  neutral: 'the road',
-  omen: 'portent',
-  battle: 'your gate'
-};
+function bucketLabel(pending: CampaignState['pending'], tone: DayTone): string {
+  if (pending) {
+    if (pending.kind === 'mystery') return '???';
+    if (pending.kind === 'altar' || pending.kind === 'ecosystem') return 'BUFF';
+    return 'EVENT';
+  }
+  return tone === 'battle' ? 'EVENT' : 'STORY';
+}
 
 interface DayPanelProps {
   camp: CampaignState;
@@ -61,7 +63,7 @@ export function DayPanel({ camp, busy, onChoose, onNextDay, onFinish }: DayPanel
         : `your gate in ${gap} days`;
 
   return (
-    <div className={'story tone-' + tone}>
+    <div className={'story tone-' + tone + (pending?.kind === 'mystery' ? ' mystery' : '')}>
       <div className="story-head">
         <span className="story-day">
           Day {camp.day}
@@ -75,11 +77,24 @@ export function DayPanel({ camp, busy, onChoose, onNextDay, onFinish }: DayPanel
 
       <div className="story-scroll">
         <div className="story-inner">
-          <span className="story-tag">{TONE_LABEL[tone]}</span>
+          <span className="story-tag">{bucketLabel(pending, tone)}</span>
           <h2 className="story-title">{title}</h2>
           <p className="story-body">{body}</p>
           {camp.aura && <div className="story-aura">{camp.aura.label}</div>}
         </div>
+      </div>
+
+      <div className="story-nekrokos">
+        <span className="story-hero-top">
+          <span className="story-hero-name">Nekrokos</span>
+          <span className="story-hero-hp">{Math.round(camp.lordHpPct * 100)}%</span>
+        </span>
+        <span className="story-hero-bar">
+          <span
+            className={'story-hero-fill' + (camp.lordHpPct * 100 <= 32 ? ' low' : '')}
+            style={{ width: camp.lordHpPct * 100 + '%' }}
+          />
+        </span>
       </div>
 
       <div className="story-party">

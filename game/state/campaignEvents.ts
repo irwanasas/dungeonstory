@@ -5,7 +5,7 @@ import { INTERACTIONS } from '../content/interactions';
 import { monsterDef } from '../content/monsters';
 import { trapDef } from '../content/traps';
 import { heroDef } from '../content/heroes';
-import { applyStatus, applyStatusToUnit, heal } from '../sim/hero';
+import { applyStatus, applyStatusToUnit } from '../sim/hero';
 import type { Rng } from '../sim/rng';
 import type { CampaignModifier, CampaignState, PendingChoice } from './campaignState';
 import { daysToCheckpoint, livingMembers } from './campaignState';
@@ -16,6 +16,7 @@ export function eligibleEvents(camp: CampaignState): DayEvent[] {
   return DAY_EVENTS.filter((e) => {
     if (!e.tiers.includes(camp.setup.tier)) return false;
     if (e.requiresStatus && !e.requiresStatus.some((k) => statuses.has(k))) return false;
+    if (e.kind === 'altar' && (camp.altarsTriggered.includes(e.id) || camp.altarsTriggered.length >= 3)) return false;
     return true;
   });
 }
@@ -100,26 +101,30 @@ export function toPending(e: DayEvent): PendingChoice {
 }
 
 export function applyOption(camp: CampaignState, e: DayEvent, option: DayEventOption, out: RaidEvent[]): void {
+  if (e.kind === 'altar' && !camp.altarsTriggered.includes(e.id)) {
+    camp.altarsTriggered = [...camp.altarsTriggered, e.id];
+  }
+
   if (option.effect) {
     const mod: CampaignModifier = {
-      id: `${e.id}:${option.id}`,
+      id: `${e.id}:${option.id}:${camp.day}`,
       source: e.kind === 'altar' ? 'altar' : 'choice',
       label: `${e.title} — ${option.label}`,
-      daysLeft: option.days === undefined ? 3 : option.days,
+      daysLeft: -1,
       effect: option.effect
     };
     if (e.kind === 'altar') camp.aura = mod;
-    else camp.mods = [...camp.mods.filter((m) => m.id !== mod.id), mod];
+    else camp.mods = [...camp.mods, mod];
   }
 
-  if (option.healPct) {
-    for (const m of livingMembers(camp)) heal(m.hero, m.hero.maxHp * option.healPct, out);
+  if (option.lordHpDelta) {
+    camp.lordHpPct = Math.max(0, Math.min(1, camp.lordHpPct + option.lordHpDelta));
   }
 
   const app = option.applyStatus;
   if (app) {
     if (app.to === 'party' || app.to === 'both') {
-      for (const m of livingMembers(camp)) applyStatus(m.hero, app.kind, app.days, heroDef(m.hero.defId), out);
+      for (const m of livingMembers(camp)) applyStatus(m.hero, app.kind, -1, heroDef(m.hero.defId), out);
     }
     if (app.to === 'monsters' || app.to === 'both') {
       const except = app.except || [];
@@ -127,7 +132,7 @@ export function applyOption(camp: CampaignState, e: DayEvent, option: DayEventOp
         if (!rt || except.includes(rt.id)) return rt;
         const units = rt.units.map((u) => {
           const copy: MonsterUnit = { ...u, status: u.status.map((s) => ({ ...s })) };
-          applyStatusToUnit(copy, app.kind, app.days, out);
+          applyStatusToUnit(copy, app.kind, -1, out);
           return copy;
         });
         return { ...rt, units };

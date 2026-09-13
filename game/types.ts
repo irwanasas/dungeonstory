@@ -284,6 +284,7 @@ export interface RaidResult {
   hero: HeroSnapshot;
   killedByTag: Tag | null;
   survived: boolean;
+  lordHp?: { hp: number; maxHp: number };
 }
 
 export type EventCategory =
@@ -306,6 +307,8 @@ export interface WorldEffect {
   monsterHp?: number;
   trapDamage?: number;
   tagDamage?: Partial<Record<Tag, number>>;
+  lordHp?: number;
+  lordAtk?: number;
   gold?: number;
   souls?: number;
   heroBias?: string[];
@@ -345,6 +348,8 @@ export interface WorldModifiers {
   monsterHp: number;
   trapDamage: number;
   tagDamage: Partial<Record<Tag, number>>;
+  lordHp: number;
+  lordAtk: number;
   gold: number;
   souls: number;
   heroBias: string[];
@@ -359,9 +364,8 @@ export interface DayEventOption {
   label: string;
   hint: string;
   effect?: WorldEffect;
-  days?: number;
-  applyStatus?: { kind: StatusKind; days: number; to: 'party' | 'monsters' | 'both'; except?: string[] };
-  healPct?: number;
+  lordHpDelta?: number;
+  applyStatus?: { kind: StatusKind; to: 'party' | 'monsters' | 'both'; except?: string[] };
 }
 
 export interface DayEvent {

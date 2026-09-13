@@ -57,6 +57,7 @@ export interface CheckpointInput {
   lord: { level: number; weaponId: string; guardianId?: string } | null;
   killedByTag: Tag | null;
   foeCap?: number;
+  lordHpPct?: number;
 }
 
 export interface CheckpointResult {
@@ -69,6 +70,7 @@ export interface CheckpointResult {
   killedByTag: Tag | null;
   looted: number;
   procs: ProcOffer[];
+  lordHp?: { hp: number; maxHp: number };
 }
 
 function buildFoes(
@@ -152,6 +154,9 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
       lord.atk = Math.max(1, Math.round(lord.atk * kit.lordAtk));
       lord.defPierce = Math.min(0.95, lord.defPierce + kit.lordPierce);
     }
+    if (input.lordHpPct !== undefined) {
+      lord.hp = Math.max(1, Math.round(lord.maxHp * input.lordHpPct));
+    }
 
     out.push({ t: 'enterRoom', room: EDITABLE_ROOMS, kind: 'throne', contentId: 'lord' });
     out.push({ t: 'doorOpen', room: EDITABLE_ROOMS });
@@ -186,6 +191,7 @@ export function runCheckpoint(input: CheckpointInput): CheckpointResult {
     result.wiped = res.wiped;
     result.cleared = res.foesDead;
     result.stalled = res.stalled;
+    result.lordHp = { hp: Math.max(0, throneFoes[0].hp), maxHp: throneFoes[0].maxHp };
     return result;
   }
 

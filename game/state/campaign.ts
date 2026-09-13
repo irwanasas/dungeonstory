@@ -16,7 +16,7 @@ import type {
   WorldState
 } from '../types';
 import { CAMPAIGN_MAX, EDITABLE_ROOMS, FAME_MAX, MAX_PER_ID } from '../types';
-import { dayEvent, procFlavour } from '../content/dayEvents';
+import { dayEvent, pickMysteryVariant, procFlavour } from '../content/dayEvents';
 import { MONSTERS, monsterDef } from '../content/monsters';
 import { TRAPS, trapDef } from '../content/traps';
 import { HEROES, heroDef } from '../content/heroes';
@@ -60,6 +60,7 @@ import {
 import { applyOption, decayMods, pickEvent, toPending } from './campaignEvents';
 
 const RANDOM_BATTLE_CHANCE = 0.35;
+const MYSTERY_MIN_DAY = 21;
 const MILESTONE_HERO_BUFF: Record<MilestoneStop['kind'], number> = { mini: 1, elite: 1.18, final: 1 };
 
 const KEPT_EVENTS = new Set([
@@ -117,6 +118,19 @@ function liveDungeon(camp: CampaignState): Dungeon {
     lordWeaponId: camp.setup.dungeon.lordWeaponId,
     talents: camp.setup.dungeon.talents
   };
+}
+
+function pickMysteryDay(totalDays: number, milestoneDays: number[], rng: Rng): number | null {
+  if (totalDays <= MYSTERY_MIN_DAY - 1) return null;
+  const blocked = new Set<number>();
+  for (const d of milestoneDays) {
+    blocked.add(d);
+    blocked.add(d - 1);
+  }
+  const candidates: number[] = [];
+  for (let d = MYSTERY_MIN_DAY; d < totalDays; d++) if (!blocked.has(d)) candidates.push(d);
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(rng() * candidates.length) % candidates.length];
 }
 
 function makeMember(record: HeroRecord, world: WorldModifiers, wave: number, king = false): PartyMember {
@@ -248,7 +262,10 @@ export function beginCampaign(
     runRooms: Array.from({ length: EDITABLE_ROOMS }, () => ({ kind: 'empty' as const })),
     runLevels: {},
     runUnlocked: [...CAMPAIGN_START_UNLOCKED],
-    outcome: null
+    outcome: null,
+    lordHpPct: 1,
+    altarsTriggered: [],
+    mysteryDay: pickMysteryDay(totalDays, milestoneDays, rng)
   };
 }
 
@@ -458,12 +475,16 @@ export function advanceDay(camp: CampaignState, world: WorldState): DayOutcome {
     battle = true;
   } else if (isPrepDay(next)) {
     resolveForcedPrep(next);
+  } else if (next.mysteryDay !== null && next.day === next.mysteryDay) {
+    resolveMysteryEvent(next, rng);
   } else if (rng() < RANDOM_BATTLE_CHANCE) {
     resolveRandomBattle(next, mods, rng, out);
     battle = true;
   } else {
     resolveDayEvent(next, out);
   }
+
+  checkLordDeath(next);
 
   const raidStart = out.find((e): e is Extract<RaidEvent, { t: 'raidStart' }> => e.t === 'raidStart');
   const seeds: BattleSeed[] = raidStart
@@ -515,12 +536,30 @@ function queueProc(camp: CampaignState, procs: ProcOffer[]): void {
     kind: 'proc',
     title: f.title,
     body: f.body,
-    options: [
-      { id: 'amp', label: f.amp.label, hint: f.amp.hint },
-      { id: 'longer', label: f.longer.label, hint: f.longer.hint }
-    ],
+    options: [{ id: 'amp', label: f.amp.label, hint: f.amp.hint }],
     proc: { kind: offer.kind, uid: offer.uid, trapId: offer.trapId }
   };
+}
+
+function resolveMysteryEvent(camp: CampaignState, rng: Rng): void {
+  camp.dayTone = 'neutral';
+  camp.dayTitle = '???';
+  camp.dayBody = '???';
+  const variant = pickMysteryVariant(rng);
+  const positiveFirst = rng() < 0.5;
+  const positive = { label: '???', hint: variant.hint };
+  const nothing = { label: '???', hint: 'What a strange day.' };
+  camp.pending = {
+    eventId: 'mystery:' + variant.id,
+    kind: 'mystery',
+    title: '???',
+    body: '???',
+    options: positiveFirst
+      ? [{ id: 'a', ...positive }, { id: 'b', ...nothing }]
+      : [{ id: 'a', ...nothing }, { id: 'b', ...positive }],
+    mystery: { positiveOptionId: positiveFirst ? 'a' : 'b', effect: variant.effect }
+  };
+  camp.log.push({ day: camp.day, kind: 'mystery', text: 'A strange day on the road.' });
 }
 
 function resolveDayEvent(camp: CampaignState, out: RaidEvent[]): void {
@@ -588,16 +627,67 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
       return { camp: next, events: [] };
     }
     if (optionId === 'party') {
-      next.mods = [
-        ...next.mods.filter((m) => m.id !== 'prep:party'),
-        { id: 'prep:party', source: 'choice' as const, label: 'Campfire Council', daysLeft: 4, effect: { heroAtk: 1.1, heroHp: 1.1 } }
-      ];
+      next.pending = {
+        eventId: 'prep-party',
+        kind: 'partyOffer',
+        title: 'Campfire Council',
+        body: 'The party gathers around the fire. What do they need most?',
+        options: [
+          { id: 'maxhp', label: 'Max HP', hint: 'Monsters and Nekrokos grow tougher, permanently.' },
+          { id: 'attack', label: 'Attack', hint: 'Traps, monsters, and Nekrokos hit harder, permanently.' }
+        ]
+      };
       next.log.push({ day: next.day, kind: 'prep:party', text: 'The party rallies around the fire.' });
-      next.pending = null;
-      next.dayBody = `${next.dayBody}\n\nThe party rallies around the fire, ready for what comes next.`;
       return { camp: next, events: [] };
     }
     return { camp, events: [] };
+  }
+
+  if (camp.pending.kind === 'partyOffer') {
+    const next: CampaignState = { ...camp, mods: camp.mods.map((m) => ({ ...m })), log: camp.log.slice() };
+    next.pending = null;
+    if (optionId === 'maxhp') {
+      next.mods = [
+        ...next.mods,
+        {
+          id: 'party:maxhp:' + next.day,
+          source: 'choice' as const,
+          label: 'Campfire Council — Max HP',
+          daysLeft: -1,
+          effect: { monsterHp: 1.15, lordHp: 1.15 }
+        }
+      ];
+      next.log.push({ day: next.day, kind: 'prep:party-maxhp', text: 'The camp bolsters its defenses.' });
+    } else if (optionId === 'attack') {
+      next.mods = [
+        ...next.mods,
+        {
+          id: 'party:attack:' + next.day,
+          source: 'choice' as const,
+          label: 'Campfire Council — Attack',
+          daysLeft: -1,
+          effect: { trapDamage: 1.15, monsterAtk: 1.15, lordAtk: 1.15 }
+        }
+      ];
+      next.log.push({ day: next.day, kind: 'prep:party-attack', text: 'The camp sharpens its teeth.' });
+    }
+    return { camp: next, events: [] };
+  }
+
+  if (camp.pending.kind === 'mystery') {
+    const myst = camp.pending.mystery;
+    const next: CampaignState = { ...camp, mods: camp.mods.map((m) => ({ ...m })), log: camp.log.slice() };
+    next.pending = null;
+    if (myst && optionId === myst.positiveOptionId) {
+      next.mods = [
+        ...next.mods,
+        { id: 'mystery:' + next.day, source: 'choice' as const, label: 'A Strange Day', daysLeft: -1, effect: myst.effect }
+      ];
+      next.log.push({ day: next.day, kind: 'mystery-take', text: 'Something changes.' });
+    } else {
+      next.log.push({ day: next.day, kind: 'mystery-pass', text: 'What a strange day.' });
+    }
+    return { camp: next, events: [] };
   }
 
   if (camp.pending.kind === 'dwarfOffer') {
@@ -620,7 +710,7 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
 
   if (camp.pending.kind === 'proc') {
     const proc = camp.pending.proc;
-    if (!proc || (optionId !== 'amp' && optionId !== 'longer')) return { camp, events: [] };
+    if (!proc || optionId !== 'amp') return { camp, events: [] };
     const next: CampaignState = {
       ...camp,
       party: camp.party.map((m) => ({ ...m, hero: { ...m.hero, status: m.hero.status.map((s) => ({ ...s })) } })),
@@ -628,15 +718,11 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
     };
     const member = next.party.find((m) => m.hero.uid === proc.uid);
     const active = member ? member.hero.status.find((s) => s.kind === proc.kind) : undefined;
-    if (active) {
-      if (optionId === 'amp') active.potency *= 1.6;
-      else active.ticksLeft += 2;
-    }
+    if (active) active.potency *= 1.6;
     const f = procFlavour(proc.trapId);
-    const chosen = optionId === 'amp' ? f.amp : f.longer;
     next.pending = null;
-    next.dayBody = `${next.dayBody}\n\n${chosen.hint}`;
-    next.log.push({ day: next.day, kind: 'proc:' + proc.trapId, text: `${chosen.label}.` });
+    next.dayBody = `${next.dayBody}\n\n${f.amp.hint}`;
+    next.log.push({ day: next.day, kind: 'proc:' + proc.trapId, text: `${f.amp.label}.` });
     return { camp: next, events: [] };
   }
 
@@ -663,7 +749,17 @@ export function commitChoice(camp: CampaignState, optionId: string, world: World
     next.log.push({ day: next.day, kind: 'aura', text: `${previous.label} fades as the new aura takes hold.` });
   }
   next.dayBody = `${next.dayBody}\n\n${option.hint}`;
+  checkLordDeath(next);
   return { camp: next, events: out };
+}
+
+function checkLordDeath(camp: CampaignState): void {
+  if (camp.status === 'active' && camp.lordHpPct <= 0) {
+    camp.dayTitle = 'Nekrokos Falls';
+    camp.dayBody = 'Something in the deep hall goes still, and does not rise again.';
+    camp.log.push({ day: camp.day, kind: 'lord-death', text: 'Nekrokos falls before his time.' });
+    finish(camp, 'heroVictory');
+  }
 }
 
 function resolveFinalDay(camp: CampaignState, mods: WorldModifiers, rng: Rng, out: RaidEvent[]): void {
@@ -717,7 +813,8 @@ function resolveFinalDay(camp: CampaignState, mods: WorldModifiers, rng: Rng, ou
       weaponId: camp.setup.dungeon.lordWeaponId,
       guardianId: camp.setup.guardianId
     },
-    killedByTag: null
+    killedByTag: null,
+    lordHpPct: camp.lordHpPct
   });
 
   for (const e of res.events) out.push(e);
@@ -726,6 +823,7 @@ function resolveFinalDay(camp: CampaignState, mods: WorldModifiers, rng: Rng, ou
     if (m.hero.hp <= 0) m.alive = false;
   }
   camp.monsters = camp.monsters.map((rt, i) => (i === EDITABLE_ROOMS ? res.runtime : rt));
+  if (res.lordHp) camp.lordHpPct = res.lordHp.maxHp > 0 ? res.lordHp.hp / res.lordHp.maxHp : 0;
 
   const reward = checkpointReward(camp.setup.tierScale, mods, res.wiped);
   camp.totals.gold += reward.gold;
@@ -897,13 +995,18 @@ function resolveRandomBattle(camp: CampaignState, mods: WorldModifiers, rng: Rng
     deaths: 0,
     scars: []
   };
-  const result = simulateRaid(liveDungeon(camp), record, camp.setup.tierScale, { rng, world: mods });
+  const result = simulateRaid(liveDungeon(camp), record, camp.setup.tierScale, {
+    rng,
+    world: mods,
+    lordHpPct: camp.lordHpPct
+  });
   for (const e of result.events) out.push(e);
   camp.wallet.gold += result.gold;
   camp.wallet.souls += result.souls;
   camp.totals.gold += result.gold;
   camp.totals.souls += result.souls;
   if (result.outcome === 'dungeonWin') camp.totals.checkpointsCleared += 1;
+  if (result.lordHp) camp.lordHpPct = result.lordHp.maxHp > 0 ? result.lordHp.hp / result.lordHp.maxHp : 0;
   camp.dayTitle = result.outcome === 'dungeonWin' ? 'An Opportunist Falls' : 'An Opportunist Tries Their Luck';
   camp.dayBody =
     result.outcome === 'dungeonWin'
@@ -928,7 +1031,7 @@ function resolveForcedPrep(camp: CampaignState): void {
     options: [
       { id: 'merchant', label: 'Traveling Merchant', hint: 'Browse a fresh stock of traps and a monster, buy what you can afford.' },
       { id: 'dwarf', label: 'Wandering Dwarf', hint: 'Pay him to upgrade something you already have.' },
-      { id: 'party', label: 'Campfire Council', hint: 'A campaign-wide buff for a few days.' }
+      { id: 'party', label: 'Campfire Council', hint: 'A permanent boost, Max HP or Attack.' }
     ]
   };
   camp.log.push({ day: camp.day, kind: 'prep', text: 'A prep-day offer reaches the gate.' });
