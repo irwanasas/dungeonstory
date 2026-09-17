@@ -8,20 +8,23 @@
   image-rendering: pixelated;
 }
 .frame {
-  border-image: var(--f-panel) 6 fill stretch;
+  border-image: var(--f-panel) 20 fill stretch;
+  image-rendering: auto;
 }
 .inset {
   border-image: var(--f-inset) 6 fill stretch;
 }
 .btn {
   border-image: var(--f-button) 6 fill stretch;
+  image-rendering: auto;
 }
 .btn:active:not(:disabled),
 .btn.on {
   border-image: var(--f-button-down) 6 fill stretch;
 }
 .btn:disabled {
-  opacity: 0.42;
+  border-image: var(--f-button-disabled) 6 fill stretch;
+  opacity: 0.8;
   cursor: default;
 }
 .plate {

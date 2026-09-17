@@ -418,20 +418,23 @@
   margin-left: 8px;
 }
 .bar {
-  height: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(0, 0, 0, 0.6);
+  height: 10px;
+  background-image: var(--bar-track);
+  background-repeat: repeat-x;
+  background-size: auto 100%;
 }
 .bar-fill {
   height: 100%;
-  background: var(--moss);
+  background-image: var(--bar-fill-green);
+  background-repeat: repeat-x;
+  background-size: auto 100%;
   transition: width 0.25s ease;
 }
 .bar-fill.low {
-  background: var(--ember);
+  background-image: var(--bar-fill-red);
 }
 .bar-fill.foe {
-  background: var(--blood);
+  background-image: var(--bar-fill-red);
 }
 
 .callout {
@@ -732,19 +735,22 @@
 
 .story-hero-bar {
   display: block;
-  height: 4px;
-  background: var(--ink);
-  border: 1px solid var(--stone);
+  height: 8px;
+  background-image: var(--bar-track);
+  background-repeat: repeat-x;
+  background-size: auto 100%;
 }
 
 .story-hero-fill {
   display: block;
   height: 100%;
-  background: var(--moss-lit);
+  background-image: var(--bar-fill-green);
+  background-repeat: repeat-x;
+  background-size: auto 100%;
 }
 
 .story-hero-fill.low {
-  background: var(--ember-lit);
+  background-image: var(--bar-fill-red);
 }
 
 .story-hero-tags {
